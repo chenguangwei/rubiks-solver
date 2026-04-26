@@ -20,8 +20,16 @@ export type ParseOptions = {
   sampleHalfWidth?: number
   /**
    * If true, use the six center stickers' sampled colors as the reference
-   * palette for nearest-color matching. Robust against palette differences
-   * (e.g. Ruwix vs. our renderer). Default true.
+   * palette for nearest-color matching, instead of the fixed WCA palette.
+   * Useful for real-cube photos where lighting shifts every color.
+   *
+   * BUT: with calibration on, every sticker gets classified by which CENTER
+   * it's most similar to — not by which standard color. If the input puts
+   * a non-standard color at a center (e.g. Ruwix's "design" mode with
+   * yellow on the U center instead of white), the face letters end up
+   * swapped relative to the standard scheme, and the rendered output looks
+   * recolored. Defaults to false so synthetic flat-net images (which
+   * already use ~WCA colors) parse straightforwardly.
    */
   calibrateFromCenters?: boolean
   /**
@@ -180,7 +188,7 @@ function cropImage(img: ImageBuffer, x0: number, y0: number, w: number, h: numbe
  */
 export function parseNet(img: ImageBuffer, options: ParseOptions = {}): ParseResult {
   const sampleHalfWidth = options.sampleHalfWidth ?? 4
-  const calibrate = options.calibrateFromCenters ?? true
+  const calibrate = options.calibrateFromCenters ?? false
   const autoCrop = options.autoCrop ?? true
   const backgroundTolerance = options.backgroundTolerance ?? 16
 
