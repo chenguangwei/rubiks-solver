@@ -5,7 +5,7 @@ import type { Face } from './cube'
 import { loadImageToBuffer } from './imageLoader'
 import { describeMove, parseMove, stickerIndicesForFace } from './moves'
 import { parseNet } from './parser'
-import { initSolver, isSolverReady, randomState, solve } from './solver'
+import { applyMoves, initSolver, isSolverReady, randomState, solve } from './solver'
 import './App.css'
 
 type SolverStatus = 'initializing' | 'ready'
@@ -19,21 +19,53 @@ function App() {
   const [parseError, setParseError] = useState<string | null>(null)
   const [moves, setMoves] = useState<string[] | null>(null)
   const [solveError, setSolveError] = useState<SolveError | null>(null)
-  const [moveIndex, setMoveIndex] = useState(0)
+  /** Number of moves applied so far while stepping through the solution. 0..moves.length. */
+  const [stepIndex, setStepIndex] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     initSolver().then(() => setSolverStatus('ready'))
   }, [])
 
+  // Keyboard navigation through the solution. Bound to window so the focus
+  // doesn't matter, scoped off when no solution is active.
+  useEffect(() => {
+    if (!moves) return
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        setStepIndex((i) => Math.min(moves!.length, i + 1))
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        setStepIndex((i) => Math.max(0, i - 1))
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [moves])
+
   const validation = validateState(state)
   const canSolve = validation.ok && solverStatus === 'ready'
+
+  const displayState = moves ? applyMoves(state, moves.slice(0, stepIndex)) : state
+  const upcomingMove =
+    moves && stepIndex < moves.length ? parseMove(moves[stepIndex]) : null
+  const highlight = upcomingMove ? stickerIndicesForFace(upcomingMove.face) : []
 
   function setStateAndClearMoves(next: string) {
     setState(next)
     setMoves(null)
     setSolveError(null)
-    setMoveIndex(0)
+    setStepIndex(0)
   }
 
   function handleStickerChange(index: number, nextFace: Face) {
@@ -58,7 +90,7 @@ function App() {
   function handleSolve() {
     setSolveError(null)
     setMoves(null)
-    setMoveIndex(0)
+    setStepIndex(0)
     try {
       const result = solve(state)
       setMoves(result)
@@ -66,10 +98,6 @@ function App() {
       setSolveError({ message: err instanceof Error ? err.message : String(err) })
     }
   }
-
-  const currentMove = moves && moveIndex < moves.length ? moves[moveIndex] : null
-  const currentMoveParsed = currentMove ? parseMove(currentMove) : null
-  const highlight = currentMoveParsed ? stickerIndicesForFace(currentMoveParsed.face) : []
 
   return (
     <main>
@@ -104,39 +132,45 @@ function App() {
 
       <section className="cube-area">
         <CubeNet
-          state={state}
-          editable
+          state={displayState}
+          editable={!moves}
           onChange={handleStickerChange}
           highlightIndices={highlight}
         />
       </section>
 
-      <section className="validation">
-        {validation.ok ? (
-          <p className="valid">Valid cube state — click any sticker to fix a wrong color.</p>
-        ) : (
-          <p className="invalid">Invalid: {validation.reason}</p>
-        )}
-      </section>
+      {!moves && (
+        <section className="validation">
+          {validation.ok ? (
+            <p className="valid">Valid cube state — click any sticker to fix a wrong color.</p>
+          ) : (
+            <p className="invalid">Invalid: {validation.reason}</p>
+          )}
+        </section>
+      )}
 
-      <section className="solve-area">
-        <button
-          className="primary"
-          disabled={!canSolve}
-          onClick={handleSolve}
-          title={!canSolve && !validation.ok ? validation.reason : undefined}
-        >
-          Solve
-        </button>
-        {solveError && (
-          <p className="error">
-            Solver error: {solveError.message}. The cube state may be unreachable from a
-            solved cube.
-          </p>
-        )}
-      </section>
+      {!moves && (
+        <section className="solve-area">
+          <button
+            className="primary"
+            disabled={!canSolve}
+            onClick={handleSolve}
+            title={!canSolve && !validation.ok ? validation.reason : undefined}
+          >
+            Solve
+          </button>
+          {solveError && (
+            <p className="error">
+              Solver error: {solveError.message}. The cube state may be unreachable from a
+              solved cube.
+            </p>
+          )}
+        </section>
+      )}
 
-      {moves && <Solution moves={moves} index={moveIndex} setIndex={setMoveIndex} />}
+      {moves && (
+        <Solution moves={moves} stepIndex={stepIndex} setStepIndex={setStepIndex} />
+      )}
 
       <footer>
         <Notation />
@@ -147,42 +181,60 @@ function App() {
 
 function Solution({
   moves,
-  index,
-  setIndex,
+  stepIndex,
+  setStepIndex,
 }: {
   moves: string[]
-  index: number
-  setIndex: (n: number) => void
+  stepIndex: number
+  setStepIndex: (n: number) => void
 }) {
-  const current = moves[index]
-  const parsed = current ? parseMove(current) : null
+  const completed = stepIndex >= moves.length
+  const upcoming = !completed ? parseMove(moves[stepIndex]) : null
   return (
     <section className="solution">
       <h2>
         Solution: {moves.length} {moves.length === 1 ? 'move' : 'moves'}
       </h2>
       <p className="move-list">
-        {moves.map((m, i) => (
-          <span key={i} className={i === index ? 'move current' : 'move'}>
-            {m}
-          </span>
-        ))}
+        {moves.map((m, i) => {
+          const cls =
+            i < stepIndex
+              ? 'move done'
+              : i === stepIndex
+                ? 'move current'
+                : 'move'
+          return (
+            <span key={i} className={cls}>
+              {m}
+            </span>
+          )
+        })}
       </p>
       <div className="step-controls">
-        <button onClick={() => setIndex(Math.max(0, index - 1))} disabled={index === 0}>
+        <button
+          onClick={() => setStepIndex(Math.max(0, stepIndex - 1))}
+          disabled={stepIndex === 0}
+        >
           ← Prev
         </button>
         <span className="step-status">
-          Step {index + 1} of {moves.length}
-          {parsed && <span className="step-detail"> — {describeMove(parsed)}</span>}
+          {completed ? (
+            <>Solved! All {moves.length} moves applied.</>
+          ) : (
+            <>
+              Move {stepIndex + 1} of {moves.length}
+              {upcoming && <span className="step-detail"> — {describeMove(upcoming)}</span>}
+            </>
+          )}
         </span>
         <button
-          onClick={() => setIndex(Math.min(moves.length - 1, index + 1))}
-          disabled={index >= moves.length - 1}
+          onClick={() => setStepIndex(Math.min(moves.length, stepIndex + 1))}
+          disabled={stepIndex >= moves.length}
         >
           Next →
         </button>
       </div>
+      <p className="step-hint">Tip: use ← / → arrow keys to step through.</p>
     </section>
   )
 }

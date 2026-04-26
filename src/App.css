@@ -129,6 +129,10 @@ button.primary:hover:not(:disabled) {
   font-weight: 500;
 }
 
+.move.done {
+  opacity: 0.45;
+}
+
 .step-controls {
   display: flex;
   align-items: center;
@@ -143,6 +147,12 @@ button.primary:hover:not(:disabled) {
 
 .step-detail {
   color: #666;
+}
+
+.step-hint {
+  font-size: 0.8rem;
+  color: #888;
+  margin: 0.5rem 0 0;
 }
 
 .notation {

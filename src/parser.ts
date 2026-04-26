@@ -199,10 +199,11 @@ export function parseNet(img: ImageBuffer, options: ParseOptions = {}): ParseRes
 
   const stickerW = workingImg.width / GRID_COLS
   const stickerH = workingImg.height / GRID_ROWS
-  if (Math.abs(stickerW - stickerH) > 1) {
+  const aspectMismatch = Math.abs(stickerW - stickerH) / Math.max(stickerW, stickerH)
+  if (aspectMismatch > 0.1) {
     return {
       ok: false,
-      reason: `Image aspect doesn't match a 12x9 grid (stickerW=${stickerW}, stickerH=${stickerH})`,
+      reason: `Image aspect doesn't match a 12×9 grid (sticker w=${stickerW.toFixed(1)}, h=${stickerH.toFixed(1)})`,
     }
   }
 
