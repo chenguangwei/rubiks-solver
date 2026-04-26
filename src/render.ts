@@ -16,7 +16,8 @@ export type RenderOptions = {
   stickerSize?: number
   /** Pixel gap between adjacent stickers, drawn as the background color (default 4). */
   gap?: number
-  /** RGB background for empty cells and gaps (default light gray). */
+  /** RGB background for empty cells and gaps. Default medium gray, chosen
+   * to be far from every face color (incl. white) so auto-crop works. */
   background?: [number, number, number]
 }
 
@@ -58,7 +59,7 @@ export function renderState(state: string, options: RenderOptions = {}): Rendere
   if (state.length !== 54) throw new Error(`Expected 54-char state, got ${state.length}`)
   const stickerSize = options.stickerSize ?? 40
   const gap = options.gap ?? 4
-  const background = options.background ?? [240, 240, 240]
+  const background = options.background ?? [128, 128, 128]
   const width = GRID_COLS * stickerSize
   const height = GRID_ROWS * stickerSize
   const data = new Uint8ClampedArray(width * height * 4)

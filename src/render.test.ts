@@ -34,9 +34,9 @@ describe('renderState', () => {
   })
 
   it('background pixel is not a sticker color', () => {
-    const out = renderState(SOLVED_STATE, { background: [240, 240, 240] })
+    const out = renderState(SOLVED_STATE, { background: [128, 128, 128] })
     // Top-left corner is outside the U face — should be background.
     const i = 0
-    expect([out.data[i], out.data[i + 1], out.data[i + 2]]).toEqual([240, 240, 240])
+    expect([out.data[i], out.data[i + 1], out.data[i + 2]]).toEqual([128, 128, 128])
   })
 })
