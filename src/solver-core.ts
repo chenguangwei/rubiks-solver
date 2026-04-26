@@ -47,6 +47,11 @@ export function isSolverCoreReady(): boolean {
 function solveCanonical(canonical: string, maxDepth?: number): Move[] {
   const cube = Cube.fromString(canonical)
   if (cube.asString() !== canonical) throw new UnsolvableCubeError()
+  // Already-solved short-circuit. cubejs.solve() on an identity cube doesn't
+  // return "" — its iterative deepening starts at depth 1 and pruning skips
+  // trivial undo pairs, so it ends up emitting a 14-move "neutral" sequence.
+  // We just want zero moves.
+  if (cube.isSolved()) return []
   const algorithm = maxDepth !== undefined ? cube.solve(maxDepth) : cube.solve()
   const verifyCube = Cube.fromString(canonical)
   if (algorithm.trim().length > 0) verifyCube.move(algorithm)

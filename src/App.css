@@ -194,6 +194,16 @@ button.cancel:hover:not(:disabled) {
   color: #555;
 }
 
+.already-solved {
+  background: #eaf6ee;
+  border: 1px solid #c7e6d2;
+  color: #0a6b2c;
+  padding: 0.6rem 0.85rem;
+  border-radius: 6px;
+  margin: 0.75rem 0;
+  font-size: 0.95rem;
+}
+
 .saved-counter {
   margin-top: 1.5rem;
   font-size: 0.8rem;

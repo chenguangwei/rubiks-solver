@@ -74,6 +74,7 @@ patches/
 
 ## Releases
 
+- **v0.4.1** — Solving an already-solved cube now returns 0 moves with an "Already solved" banner. Previously cubejs's iterative-deepening pruning would emit a 14-move "neutral" sequence (e.g. `R L U2 R L F2 R2 U2 R2 F2 R2 U2 F2 L2`) instead of the empty solution.
 - **v0.4.0** — `Solve (tightest)` button: iterative-deepening Kociemba aiming at God's Number (20 moves) within a ~9-second hard deadline. Solver moved into a Web Worker so the UI stays responsive while it churns. Lifetime "moves saved" counter tracked in localStorage.
 - **v0.3.0** — Interactive 3D cube alongside the 2D net, with mouse orbit controls and animated face rotations during step-through. Detect unreachable cube states (parity violations, permuted centers) and surface a clear error instead of returning a partial solve.
 - **v0.2.0** — Paste / drag-and-drop image upload, share-via-URL hash, auto-play step-through with speed control, accept any rotational orientation, smart calibration via globally optimal 6-way assignment.

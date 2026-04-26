@@ -422,18 +422,22 @@ function App() {
         </section>
       )}
 
-      {moves && solveMode === 'tight' && tightInfo && tightInfo.baseline > tightInfo.current && (
+      {moves && moves.length > 0 && solveMode === 'tight' && tightInfo && tightInfo.baseline > tightInfo.current && (
         <p className="tight-banner">
           Found a {tightInfo.current}-move solution — saved {tightInfo.baseline - tightInfo.current} vs. the {tightInfo.baseline}-move baseline.
         </p>
       )}
-      {moves && solveMode === 'tight' && tightInfo && tightInfo.baseline === tightInfo.current && (
+      {moves && moves.length > 0 && solveMode === 'tight' && tightInfo && tightInfo.baseline === tightInfo.current && (
         <p className="tight-banner muted">
           Couldn't find anything shorter than {tightInfo.current} moves within {TIGHT_DEADLINE_MS / 1000}s — Kociemba's first solution was already locally optimal.
         </p>
       )}
 
-      {moves && (
+      {moves && moves.length === 0 && (
+        <p className="already-solved">The cube is already solved — no moves needed.</p>
+      )}
+
+      {moves && moves.length > 0 && (
         <Solution
           moves={moves}
           stepIndex={stepIndex}

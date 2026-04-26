@@ -20,6 +20,22 @@ describe('solver-core', () => {
     expect(isSolved(solvedState())).toBe(true)
   })
 
+  it('returns no moves when the input is already solved', () => {
+    expect(solveFastSync(SOLVED_STATE)).toEqual([])
+  })
+
+  it('returns no moves when a non-canonical solved orientation is the input', () => {
+    // Cube rotated 180° around the L-R axis: U<->D and F<->B labels.
+    // Each face is uniformly one color, just not the canonical scheme.
+    const swap: Record<string, string> = { U: 'D', D: 'U', F: 'B', B: 'F', L: 'L', R: 'R' }
+    const rotatedSolved = [...SOLVED_STATE].map((c) => swap[c]).join('')
+    expect(solveFastSync(rotatedSolved)).toEqual([])
+  })
+
+  it('tight mode also returns no moves on an already-solved cube', () => {
+    expect(solveTightSync(SOLVED_STATE, { deadlineMs: 1000 })).toEqual([])
+  })
+
   it('solves a single-move scramble', () => {
     const scrambled = applyMoves(solvedState(), 'R')
     const moves = solveFastSync(scrambled)
