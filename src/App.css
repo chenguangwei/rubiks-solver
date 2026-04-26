@@ -3,6 +3,30 @@ main {
   margin: 0 auto;
   padding: 1.5rem 1rem 4rem;
   font-family: system-ui, -apple-system, sans-serif;
+  position: relative;
+  transition: outline-color 120ms ease;
+  outline: 2px dashed transparent;
+  outline-offset: -8px;
+  border-radius: 8px;
+}
+
+main.dragging {
+  outline-color: #0046ad;
+  background: rgba(0, 70, 173, 0.04);
+}
+
+main.dragging::after {
+  content: 'Drop image here to scan';
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  font-size: 1.5rem;
+  color: #0046ad;
+  font-weight: 500;
+  z-index: 10;
 }
 
 header h1 {
@@ -153,6 +177,47 @@ button.primary:hover:not(:disabled) {
   font-size: 0.8rem;
   color: #888;
   margin: 0.5rem 0 0;
+}
+
+.play-toggle[aria-pressed='true'] {
+  background: #0046ad;
+  color: white;
+  border-color: #003a8c;
+}
+
+.speed-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.6rem 0 0;
+  font-size: 0.85rem;
+}
+
+.speed-label {
+  color: #555;
+}
+
+button.speed {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.55rem;
+  text-transform: capitalize;
+}
+
+button.speed.active {
+  background: #0046ad;
+  color: white;
+  border-color: #003a8c;
+}
+
+.share-feedback {
+  background: #eef5ff;
+  border: 1px solid #cfe0ff;
+  color: #003a8c;
+  padding: 0.4rem 0.75rem;
+  border-radius: 4px;
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+  word-break: break-all;
 }
 
 .notation {

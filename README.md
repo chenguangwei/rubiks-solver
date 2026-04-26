@@ -8,11 +8,11 @@ A browser-based 3×3 Rubik's Cube solver. Upload a flat-net image of a scrambled
 
 ## What it does
 
-1. **Upload a net image** (the unfolded "cross" view of the six faces) or click **Random scramble** to start from a programmatic state.
-2. The CV pipeline crops the cross, samples each sticker, and snaps every color to one of the six faces using per-image calibration from the center stickers.
-3. The detected state appears in an editable cube net — click any sticker to fix a wrong color before solving.
+1. **Get a cube state in** — three ways: click **Upload net image**, drop a net image anywhere on the page, or paste one with ⌘V. **Random scramble** generates a programmatic state for testing. **Share** copies a URL that reproduces the exact current state.
+2. The CV pipeline crops the cross, samples each sticker, and snaps every color via per-image calibration: it finds the globally optimal 6-way assignment of the center stickers to the WCA palette, then classifies every other sticker against those calibrated centers (handles palette drift like Ruwix's yellow-shifted orange).
+3. The detected state appears in an editable cube net — click any sticker to fix a wrong color before solving. Any of the 24 rotational orientations is accepted; the centers themselves define which face is which.
 4. Click **Solve** to compute a 22-moves-or-less solution via Kociemba's two-phase algorithm.
-5. Step through the solution one move at a time; the face being rotated is highlighted on the net.
+5. Step through the solution one move at a time, or hit **▶ Play** for auto-advance with slow/normal/fast speeds. The face being rotated is highlighted on the net, and the cube animates to the new state at each step.
 
 ## How it works
 
@@ -60,6 +60,11 @@ patches/
 - [ ] 3D cube preview with animated solution playback (Three.js)
 - [ ] Real-camera capture flow (six face captures, center-anchored color calibration)
 - [ ] iOS native version (Swift / SwiftUI / VisionKit)
+
+## Releases
+
+- **v0.2.0** — Paste / drag-and-drop image upload, share-via-URL hash, auto-play step-through with speed control, accept any rotational orientation, smart calibration via globally optimal 6-way assignment.
+- **v0.1.0** — Initial MVP: Vite + React + TS, Kociemba solver, flat-net image parser, editable cube net, step-through solution viewer.
 
 ## Tech stack
 
