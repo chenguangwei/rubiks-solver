@@ -290,12 +290,7 @@ function App() {
           >
             Solve
           </button>
-          {solveError && (
-            <p className="error">
-              Solver error: {solveError.message}. The cube state may be unreachable from a
-              solved cube.
-            </p>
-          )}
+          {solveError && <p className="error">{solveError.message}</p>}
         </section>
       )}
 
