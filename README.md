@@ -83,3 +83,7 @@ patches/
 ## Tech stack
 
 Vite · React 19 · TypeScript · Vitest · cubejs (Kociemba) · three.js + react-three-fiber + drei · GitHub Pages
+
+## License
+
+MIT — see [LICENSE](LICENSE).
