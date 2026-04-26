@@ -4,6 +4,7 @@ import {
   FACES,
   PLACEMENTS,
   SOLVED_STATE,
+  canonicalizeOrientation,
   cycleSticker,
   setSticker,
   validateState,
@@ -56,14 +57,35 @@ describe('validateState', () => {
   })
 
   it('rejects when centers are not distinct', () => {
-    // Build a state with 9 of each color but two faces sharing a center.
-    // Swap centers of U and D, plus one non-center to keep counts balanced.
+    // U and D centers both end up as D (only 5 distinct centers). Keep counts
+    // balanced: change U center -> D (10 D, 8 U), then a D corner -> U (9 D,
+    // 9 U). Now centers are {D, R, F, D, L, B} — only 5 unique.
     let bad = setSticker(SOLVED_STATE, CENTER_INDICES.U, 'D')
-    bad = setSticker(bad, 0, 'D') // U corner becomes D
-    bad = setSticker(bad, CENTER_INDICES.D, 'U')
-    bad = setSticker(bad, 27, 'U') // D corner becomes U
+    bad = setSticker(bad, 27, 'U') // D corner becomes U so counts stay 9/9
     const result = validateState(bad)
     expect(result.ok).toBe(false)
+  })
+
+  it('accepts non-canonical but valid orientations', () => {
+    // Cube rotated 180° around the L-R axis: U<->D and F<->B as labels.
+    // This is a valid rotational orientation of a solved cube and should pass.
+    const swap: Record<string, string> = { U: 'D', D: 'U', F: 'B', B: 'F', L: 'L', R: 'R' }
+    const rotated = [...SOLVED_STATE].map((c) => swap[c]).join('')
+    expect(validateState(rotated)).toEqual({ ok: true })
+  })
+})
+
+describe('canonicalizeOrientation', () => {
+  it('is a no-op for an already-canonical state', () => {
+    expect(canonicalizeOrientation(SOLVED_STATE)).toBe(SOLVED_STATE)
+  })
+
+  it('relabels letters so centers land at canonical positions after a 180° flip', () => {
+    const swap: Record<string, string> = { U: 'D', D: 'U', F: 'B', B: 'F', L: 'L', R: 'R' }
+    const rotated = [...SOLVED_STATE].map((c) => swap[c]).join('')
+    const canonical = canonicalizeOrientation(rotated)
+    expect(canonical).toBe(SOLVED_STATE)
+    for (const f of FACES) expect(canonical[CENTER_INDICES[f]]).toBe(f)
   })
 })
 

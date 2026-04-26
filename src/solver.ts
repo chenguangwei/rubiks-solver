@@ -1,4 +1,5 @@
 import Cube from 'cubejs'
+import { canonicalizeOrientation } from './cube'
 
 export type Move = string
 
@@ -26,7 +27,12 @@ export function solve(state: string): Move[] {
   if (!initialized) {
     throw new Error('Solver not initialized — call initSolver() first')
   }
-  const cube = Cube.fromString(state)
+  // Kociemba targets a canonical "all U at U" solved state, so first relabel
+  // the input letters so its centers are canonical. The output moves are in
+  // notation that's relative to whatever orientation the user is holding the
+  // cube in, so they apply directly without translation.
+  const canonical = canonicalizeOrientation(state)
+  const cube = Cube.fromString(canonical)
   const algorithm = cube.solve()
   return algorithm.split(' ').filter(Boolean)
 }

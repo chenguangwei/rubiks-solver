@@ -113,15 +113,34 @@ export function validateState(state: string): ValidationResult {
   if (uniqueCenters.size !== 6) {
     return { ok: false, reason: 'Center stickers must be 6 distinct colors' }
   }
-  for (const f of FACES) {
-    if (state[CENTER_INDICES[f]] !== f) {
-      return {
-        ok: false,
-        reason: `Center of face ${f} should be ${f} (was ${state[CENTER_INDICES[f]]})`,
-      }
-    }
-  }
+  // Note: we do NOT require centers at canonical positions (i.e. U letter at
+  // U center, etc.). Real cube images can be in any of 24 rotational
+  // orientations and are still solvable; canonicalizeOrientation() lets the
+  // solver treat the input as canonical for its internal purposes.
   return { ok: true }
+}
+
+/**
+ * Permute the face letters in a state so that centers are at canonical
+ * positions (U letter at U center, R at R, etc.). Equivalent to picking up
+ * the cube and rotating it so the user's "up face" is what cubejs sees as up.
+ *
+ * The Rubik's cube has 24 rotational symmetries; this collapses any of them
+ * to the canonical one. The actual sticker permutation isn't applied — only
+ * the labels are renamed — because Rubik's move notation is defined relative
+ * to whatever orientation the cube is in. So a solver run on the canonical-
+ * letter version produces moves that work directly when the user follows
+ * them on their physically-oriented cube.
+ */
+export function canonicalizeOrientation(state: string): string {
+  const substitution: Record<Face, Face> = {} as Record<Face, Face>
+  for (const face of FACES) {
+    const currentLetter = state[CENTER_INDICES[face]] as Face
+    substitution[currentLetter] = face
+  }
+  let out = ''
+  for (const ch of state) out += substitution[ch as Face]
+  return out
 }
 
 /** Replace the sticker at the given facelet index with the given face color. */
