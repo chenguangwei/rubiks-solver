@@ -1,21 +1,70 @@
-import Cube from 'cubejs'
-import { canonicalizeOrientation } from './cube'
+import SolverWorker from './solver.worker?worker'
+import {
+  UnsolvableCubeError,
+  applyMoves,
+  isSolved,
+  randomState,
+  solvedState,
+} from './solver-core'
+import type { Move, TightSolveProgress } from './solver-core'
+import type { WorkerInbound, WorkerOutbound } from './solver.worker'
 
-export type Move = string
+// Re-export sync utilities so consumers can keep importing from './solver'.
+export { UnsolvableCubeError, applyMoves, isSolved, randomState, solvedState }
+export type { Move, TightSolveProgress }
 
+let worker: Worker | null = null
 let initialized = false
 let initPromise: Promise<void> | null = null
+
+type PendingRequest = {
+  resolve: (value: unknown) => void
+  reject: (e: unknown) => void
+  onProgress?: (p: TightSolveProgress) => void
+}
+const pending = new Map<string, PendingRequest>()
+let nextId = 0
+
+function ensureWorker(): Worker {
+  if (worker) return worker
+  worker = new SolverWorker() as Worker
+  worker.onmessage = (e: MessageEvent<WorkerOutbound>) => {
+    const msg = e.data
+    const handler = pending.get(msg.id)
+    if (!handler) return
+    if (msg.type === 'progress') {
+      handler.onProgress?.({ moves: msg.moves, phase: msg.phase })
+      return // don't resolve yet — wait for 'result'
+    }
+    if (msg.type === 'init-done') {
+      initialized = true
+      handler.resolve(undefined)
+    } else if (msg.type === 'result') {
+      handler.resolve(msg.moves)
+    } else if (msg.type === 'error') {
+      handler.reject(msg.unsolvable ? new UnsolvableCubeError() : new Error(msg.message))
+    }
+    pending.delete(msg.id)
+  }
+  return worker
+}
+
+function send(msg: WorkerInbound, onProgress?: (p: TightSolveProgress) => void): Promise<unknown> {
+  ensureWorker()
+  return new Promise((resolve, reject) => {
+    pending.set(msg.id, { resolve, reject, onProgress })
+    worker!.postMessage(msg)
+  })
+}
+
+function newId(): string {
+  return String(++nextId)
+}
 
 export function initSolver(): Promise<void> {
   if (initialized) return Promise.resolve()
   if (initPromise) return initPromise
-  initPromise = new Promise<void>((resolve) => {
-    queueMicrotask(() => {
-      Cube.initSolver()
-      initialized = true
-      resolve()
-    })
-  })
+  initPromise = send({ id: newId(), type: 'init' }) as Promise<void>
   return initPromise
 }
 
@@ -23,63 +72,40 @@ export function isSolverReady(): boolean {
   return initialized
 }
 
-export class UnsolvableCubeError extends Error {
-  constructor() {
-    super(
-      "This cube state isn't reachable by twisting a real Rubik's cube — " +
-        'the corners, edges, or centers are in a configuration no sequence ' +
-        'of face rotations can produce. Click any sticker to fix it, or use ' +
-        'Random scramble for a guaranteed-solvable state.',
-    )
-    this.name = 'UnsolvableCubeError'
-  }
+export function solve(state: string): Promise<Move[]> {
+  return send({ id: newId(), type: 'solve-fast', state }) as Promise<Move[]>
 }
 
-export function solve(state: string): Move[] {
-  if (!initialized) {
-    throw new Error('Solver not initialized — call initSolver() first')
-  }
-  // Kociemba targets a canonical "all U at U" solved state, so first relabel
-  // the input letters so its centers are canonical. The output moves are in
-  // notation that's relative to whatever orientation the user is holding the
-  // cube in, so they apply directly without translation.
-  const canonical = canonicalizeOrientation(state)
-  const cube = Cube.fromString(canonical)
-  // cubejs silently "fixes" parity violations and other unreachable cubie
-  // configurations during fromString — a flipped single edge, twisted single
-  // corner, or constructed states like permuted centers all get rewritten
-  // into the closest reachable cube. If the round-trip changed any sticker,
-  // the input wasn't a valid representation of a real cube.
-  if (cube.asString() !== canonical) {
-    throw new UnsolvableCubeError()
-  }
-  const algorithm = cube.solve()
-  // Defense in depth: also verify the produced solution actually reaches the
-  // identity. (Kociemba can return a best-effort approximation in pathological
-  // cases not caught by the round-trip check.)
-  const verifyCube = Cube.fromString(canonical)
-  if (algorithm.trim().length > 0) verifyCube.move(algorithm)
-  if (!verifyCube.isSolved()) {
-    throw new UnsolvableCubeError()
-  }
-  return algorithm.split(' ').filter(Boolean)
+export type SolveTightOptions = {
+  deadlineMs?: number
+  minDepth?: number
+  onProgress?: (p: TightSolveProgress) => void
 }
 
-export function applyMoves(state: string, moves: Move[] | string): string {
-  const cube = Cube.fromString(state)
-  const algorithm = Array.isArray(moves) ? moves.join(' ') : moves
-  if (algorithm.trim().length > 0) cube.move(algorithm)
-  return cube.asString()
+export function solveTight(state: string, options: SolveTightOptions = {}): Promise<Move[]> {
+  return send(
+    {
+      id: newId(),
+      type: 'solve-tight',
+      state,
+      deadlineMs: options.deadlineMs ?? 6000,
+      minDepth: options.minDepth ?? 18,
+    },
+    options.onProgress,
+  ) as Promise<Move[]>
 }
 
-export function solvedState(): string {
-  return new Cube().asString()
-}
-
-export function isSolved(state: string): boolean {
-  return Cube.fromString(state).isSolved()
-}
-
-export function randomState(): string {
-  return Cube.random().asString()
+/**
+ * Hard-cancel any in-flight solver work by terminating the worker. The next
+ * solve() call will spawn a fresh worker and pay the ~3s init cost again.
+ * Use sparingly — only when the user explicitly asks to cancel a tight solve.
+ */
+export function terminateSolver(): void {
+  if (!worker) return
+  worker.terminate()
+  worker = null
+  initialized = false
+  initPromise = null
+  for (const [, h] of pending) h.reject(new Error('Solver cancelled'))
+  pending.clear()
 }

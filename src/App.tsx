@@ -7,17 +7,44 @@ import { loadImageToBuffer } from './imageLoader'
 import { describeMove, parseMove, stickerIndicesForFace } from './moves'
 import { parseNet } from './parser'
 import { decodeStateFromHash, shareUrl } from './share'
-import { applyMoves, initSolver, isSolverReady, randomState, solve } from './solver'
+import {
+  applyMoves,
+  initSolver,
+  isSolverReady,
+  randomState,
+  solve,
+  solveTight,
+  terminateSolver,
+} from './solver'
 import './App.css'
 
 type SolverStatus = 'initializing' | 'ready'
 type SolveError = { message: string }
 type PlaySpeed = 'slow' | 'normal' | 'fast'
+type SolveMode = 'fast' | 'tight'
+type TightInfo = { baseline: number; current: number }
 
 const SPEED_MS: Record<PlaySpeed, number> = {
   slow: 1500,
   normal: 700,
   fast: 300,
+}
+
+/** Soft deadline in the worker — between calls, stop trying to tighten further. */
+const TIGHT_DEADLINE_MS = 6000
+/** Hard deadline on the main thread. If a single cubejs.solve() call blows
+ * through the soft deadline, the worker is terminated and we fall back to
+ * the latest progress result. The worker is then re-initialised in the
+ * background (~3s) so the next solve isn't penalised. */
+const TIGHT_HARD_TIMEOUT_MS = 9000
+
+const LS_MOVES_SAVED = 'rubiks-solver:moves-saved'
+const LS_TIGHT_COUNT = 'rubiks-solver:tight-count'
+
+function readNumber(key: string): number {
+  const raw = typeof window !== 'undefined' ? localStorage.getItem(key) : null
+  const n = raw ? parseInt(raw, 10) : 0
+  return Number.isFinite(n) ? n : 0
 }
 
 function readInitialState(): string {
@@ -32,31 +59,29 @@ function App() {
   )
   const [parseError, setParseError] = useState<string | null>(null)
   const [moves, setMoves] = useState<string[] | null>(null)
+  const [solveMode, setSolveMode] = useState<SolveMode | null>(null)
+  const [tightInfo, setTightInfo] = useState<TightInfo | null>(null)
+  const [solveBusy, setSolveBusy] = useState<SolveMode | null>(null)
   const [solveError, setSolveError] = useState<SolveError | null>(null)
-  /** Number of moves applied so far while stepping through the solution. 0..moves.length. */
   const [stepIndex, setStepIndex] = useState(0)
   const [autoPlay, setAutoPlay] = useState(false)
   const [playSpeed, setPlaySpeed] = useState<PlaySpeed>('normal')
   const [shareFeedback, setShareFeedback] = useState<string | null>(null)
+  const [savedTotals, setSavedTotals] = useState({
+    movesSaved: readNumber(LS_MOVES_SAVED),
+    tightCount: readNumber(LS_TIGHT_COUNT),
+  })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     initSolver().then(() => setSolverStatus('ready'))
   }, [])
 
-  // Refs so global event handlers see the freshest values without re-binding.
-  const stateRef = useRef(state)
-  const movesRef = useRef(moves)
-  useEffect(() => {
-    stateRef.current = state
-  }, [state])
-  useEffect(() => {
-    movesRef.current = moves
-  }, [moves])
-
   function setStateAndClearMoves(next: string) {
     setState(next)
     setMoves(null)
+    setSolveMode(null)
+    setTightInfo(null)
     setSolveError(null)
     setStepIndex(0)
     setAutoPlay(false)
@@ -77,7 +102,7 @@ function App() {
     }
   }
 
-  // Paste image from clipboard (Cmd+V / Ctrl+V) anywhere on the page.
+  // Paste image from clipboard (⌘V / Ctrl+V) anywhere on the page.
   useEffect(() => {
     function onPaste(e: ClipboardEvent) {
       const items = e.clipboardData?.items
@@ -135,9 +160,7 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Keyboard navigation through the solution. Bound to window so the focus
-  // doesn't matter, scoped off when no solution is active. Pauses auto-play
-  // on any manual nudge.
+  // Keyboard nav through the solution.
   useEffect(() => {
     if (!moves) return
     function onKey(e: KeyboardEvent) {
@@ -167,9 +190,7 @@ function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [moves])
 
-  // Auto-play tick. Each tick schedules the next via setTimeout so the
-  // cancellation story stays simple — toggling autoPlay or moves immediately
-  // clears the pending tick.
+  // Auto-play tick.
   useEffect(() => {
     if (!autoPlay || !moves) return
     if (stepIndex >= moves.length) {
@@ -183,7 +204,7 @@ function App() {
   }, [autoPlay, stepIndex, moves, playSpeed])
 
   const validation = validateState(state)
-  const canSolve = validation.ok && solverStatus === 'ready'
+  const canSolve = validation.ok && solverStatus === 'ready' && !solveBusy
 
   const displayState = moves ? applyMoves(state, moves.slice(0, stepIndex)) : state
   const upcomingMove =
@@ -194,17 +215,100 @@ function App() {
     setStateAndClearMoves(state.slice(0, index) + nextFace + state.slice(index + 1))
   }
 
-  function handleSolve() {
+  async function handleSolveFast() {
     setSolveError(null)
     setMoves(null)
+    setSolveMode(null)
+    setTightInfo(null)
     setStepIndex(0)
     setAutoPlay(false)
+    setSolveBusy('fast')
     try {
-      const result = solve(state)
+      const result = await solve(state)
       setMoves(result)
+      setSolveMode('fast')
     } catch (err) {
       setSolveError({ message: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setSolveBusy(null)
     }
+  }
+
+  async function handleSolveTight() {
+    setSolveError(null)
+    setMoves(null)
+    setSolveMode(null)
+    setTightInfo(null)
+    setStepIndex(0)
+    setAutoPlay(false)
+    setSolveBusy('tight')
+
+    let baseline = 0
+    let latestProgress: string[] | null = null
+    let timedOut = false
+
+    // Hard timeout: if a single solve() call inside the worker blows past
+    // the soft deadline (~6s) we terminate the worker and recover with the
+    // best progress we've heard so far.
+    const hardTimer = window.setTimeout(() => {
+      timedOut = true
+      terminateSolver()
+      if (latestProgress) {
+        setMoves(latestProgress)
+        setSolveMode('tight')
+        setTightInfo({ baseline, current: latestProgress.length })
+        const saved = Math.max(0, baseline - latestProgress.length)
+        if (saved > 0) bumpSavedTotals(saved)
+      } else {
+        setSolveError({
+          message: `Tight solve timed out after ${TIGHT_HARD_TIMEOUT_MS / 1000}s with no result. Try Solve (fast) or Random scramble.`,
+        })
+      }
+      setSolveBusy(null)
+      setSolverStatus('initializing')
+      initSolver().then(() => setSolverStatus('ready'))
+    }, TIGHT_HARD_TIMEOUT_MS)
+
+    try {
+      const result = await solveTight(state, {
+        deadlineMs: TIGHT_DEADLINE_MS,
+        onProgress: ({ moves: m, phase }) => {
+          if (phase === 'baseline') baseline = m.length
+          latestProgress = m
+          setTightInfo({ baseline, current: m.length })
+        },
+      })
+      window.clearTimeout(hardTimer)
+      if (timedOut) return // already handled by hard timer
+      setMoves(result)
+      setSolveMode('tight')
+      setTightInfo({ baseline, current: result.length })
+      const saved = Math.max(0, baseline - result.length)
+      if (saved > 0) bumpSavedTotals(saved)
+    } catch (err) {
+      window.clearTimeout(hardTimer)
+      if (timedOut) return // hard timer beat us, already handled
+      const message = err instanceof Error ? err.message : String(err)
+      if (message !== 'Solver cancelled') setSolveError({ message })
+    } finally {
+      if (!timedOut) setSolveBusy(null)
+    }
+  }
+
+  function bumpSavedTotals(saved: number) {
+    const newSaved = savedTotals.movesSaved + saved
+    const newCount = savedTotals.tightCount + 1
+    localStorage.setItem(LS_MOVES_SAVED, String(newSaved))
+    localStorage.setItem(LS_TIGHT_COUNT, String(newCount))
+    setSavedTotals({ movesSaved: newSaved, tightCount: newCount })
+  }
+
+  function handleCancelTight() {
+    terminateSolver()
+    setSolveBusy(null)
+    setTightInfo(null)
+    setSolverStatus('initializing')
+    initSolver().then(() => setSolverStatus('ready'))
   }
 
   async function handleShare() {
@@ -263,7 +367,7 @@ function App() {
         <div className="cube-net">
           <CubeNet
             state={displayState}
-            editable={!moves}
+            editable={!moves && !solveBusy}
             onChange={handleStickerChange}
             highlightIndices={highlight}
           />
@@ -273,7 +377,7 @@ function App() {
         </div>
       </section>
 
-      {!moves && (
+      {!moves && !solveBusy && (
         <section className="validation">
           {validation.ok ? (
             <p className="valid">
@@ -291,13 +395,42 @@ function App() {
           <button
             className="primary"
             disabled={!canSolve}
-            onClick={handleSolve}
-            title={!canSolve && !validation.ok ? validation.reason : undefined}
+            onClick={handleSolveFast}
+            title={!canSolve && !validation.ok ? validation.reason : 'Fast Kociemba solve (typically 20–22 moves, instant).'}
           >
-            Solve
+            {solveBusy === 'fast' ? 'Solving…' : 'Solve'}
           </button>
+          <button
+            className="secondary"
+            disabled={!canSolve}
+            onClick={handleSolveTight}
+            title={`Aims for God's Number (≤20 moves). Iterates Kociemba at tighter depths for up to ${TIGHT_DEADLINE_MS / 1000}s.`}
+          >
+            {solveBusy === 'tight' ? 'Tightening…' : 'Solve (tightest)'}
+          </button>
+          {solveBusy === 'tight' && tightInfo && (
+            <span className="tight-progress">
+              baseline {tightInfo.baseline}, best so far {tightInfo.current}
+            </span>
+          )}
+          {solveBusy === 'tight' && (
+            <button className="cancel" onClick={handleCancelTight}>
+              Cancel
+            </button>
+          )}
           {solveError && <p className="error">{solveError.message}</p>}
         </section>
+      )}
+
+      {moves && solveMode === 'tight' && tightInfo && tightInfo.baseline > tightInfo.current && (
+        <p className="tight-banner">
+          Found a {tightInfo.current}-move solution — saved {tightInfo.baseline - tightInfo.current} vs. the {tightInfo.baseline}-move baseline.
+        </p>
+      )}
+      {moves && solveMode === 'tight' && tightInfo && tightInfo.baseline === tightInfo.current && (
+        <p className="tight-banner muted">
+          Couldn't find anything shorter than {tightInfo.current} moves within {TIGHT_DEADLINE_MS / 1000}s — Kociemba's first solution was already locally optimal.
+        </p>
       )}
 
       {moves && (
@@ -314,6 +447,12 @@ function App() {
 
       <footer>
         <Notation />
+        {savedTotals.tightCount > 0 && (
+          <p className="saved-counter">
+            Lifetime: {savedTotals.movesSaved} move{savedTotals.movesSaved === 1 ? '' : 's'} saved
+            across {savedTotals.tightCount} tight solve{savedTotals.tightCount === 1 ? '' : 's'}.
+          </p>
+        )}
       </footer>
     </main>
   )

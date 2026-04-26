@@ -2,11 +2,11 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { SOLVED_STATE } from './cube'
 import { parseNet } from './parser'
 import { renderState } from './render'
-import { initSolver, randomState } from './solver'
+import { initSolverCore, randomState } from './solver-core'
 
 describe('parseNet', () => {
   beforeAll(async () => {
-    await initSolver()
+    await initSolverCore()
   }, 20_000)
 
   it('round-trips the solved state', () => {
