@@ -1,4 +1,4 @@
-import { FACE_COLORS, FACES, GRID_COLS, GRID_ROWS, PLACEMENTS } from './cube'
+import { CENTER_INDICES, FACE_COLORS, FACES, GRID_COLS, GRID_ROWS, PLACEMENTS } from './cube'
 import type { Face } from './cube'
 
 export type ImageBuffer = {
@@ -19,17 +19,13 @@ export type ParseOptions = {
    */
   sampleHalfWidth?: number
   /**
-   * If true, use the six center stickers' sampled colors as the reference
-   * palette for nearest-color matching, instead of the fixed WCA palette.
-   * Useful for real-cube photos where lighting shifts every color.
-   *
-   * BUT: with calibration on, every sticker gets classified by which CENTER
-   * it's most similar to — not by which standard color. If the input puts
-   * a non-standard color at a center (e.g. Ruwix's "design" mode with
-   * yellow on the U center instead of white), the face letters end up
-   * swapped relative to the standard scheme, and the rendered output looks
-   * recolored. Defaults to false so synthetic flat-net images (which
-   * already use ~WCA colors) parse straightforwardly.
+   * If true (default), uses "smart calibration": samples the six center
+   * stickers, finds the globally optimal 6-way assignment of those samples
+   * to the six WCA faces (minimum total Lab distance over 6! permutations),
+   * then classifies every other sticker against those *image* samples.
+   * Robust to palette drift (e.g. Ruwix's orange is yellow-shifted enough
+   * that nearest-WCA matching would individually misclassify it as yellow,
+   * but the bipartite assignment correctly puts orange→L and yellow→D).
    */
   calibrateFromCenters?: boolean
   /**
@@ -188,7 +184,7 @@ function cropImage(img: ImageBuffer, x0: number, y0: number, w: number, h: numbe
  */
 export function parseNet(img: ImageBuffer, options: ParseOptions = {}): ParseResult {
   const sampleHalfWidth = options.sampleHalfWidth ?? 4
-  const calibrate = options.calibrateFromCenters ?? false
+  const calibrate = options.calibrateFromCenters ?? true
   const autoCrop = options.autoCrop ?? true
   const backgroundTolerance = options.backgroundTolerance ?? 16
 
@@ -222,42 +218,82 @@ export function parseNet(img: ImageBuffer, options: ParseOptions = {}): ParseRes
     samples[p.index] = sampleAverage(workingImg, cx, cy, sampleHalfWidth)
   }
 
-  // Build the reference palette. Either WCA defaults, or the actual sampled
-  // colors from the six center stickers (per-image calibration).
-  const referencePalette: Record<Face, [number, number, number]> = {} as Record<
+  // Reference Lab values for the six WCA face colors. Used either directly
+  // (no calibration) or as the "what does this center sample look like?"
+  // lookup target during calibration.
+  const wcaLab: Record<Face, [number, number, number]> = {} as Record<
     Face,
     [number, number, number]
   >
-  if (calibrate) {
-    for (const face of FACES) {
-      const centerPlacement = PLACEMENTS.find(
-        (p) => p.face === face && p.facePos === 4,
-      )!
-      referencePalette[face] = samples[centerPlacement.index]
-    }
-  } else {
-    for (const face of FACES) referencePalette[face] = hexToRgb(FACE_COLORS[face])
-  }
-  const referenceLab: Record<Face, [number, number, number]> = {} as Record<
-    Face,
-    [number, number, number]
-  >
-  for (const face of FACES) referenceLab[face] = rgbToLab(referencePalette[face])
+  for (const face of FACES) wcaLab[face] = rgbToLab(hexToRgb(FACE_COLORS[face]))
 
-  let stateChars: string[] = new Array(54)
-  for (const p of PLACEMENTS) {
-    const lab = rgbToLab(samples[p.index])
-    let bestFace: Face = FACES[0]
+  function nearestFace(
+    lab: [number, number, number],
+    refsByFace: Record<Face, [number, number, number]>,
+  ): Face {
+    let best: Face = FACES[0]
     let bestDist = Infinity
     for (const face of FACES) {
-      const d = labDistance(lab, referenceLab[face])
+      const d = labDistance(lab, refsByFace[face])
       if (d < bestDist) {
         bestDist = d
-        bestFace = face
+        best = face
       }
     }
-    stateChars[p.index] = bestFace
+    return best
   }
 
+  let stateChars: string[] = new Array(54)
+
+  if (calibrate) {
+    const centerLab: Record<Face, [number, number, number]> = {} as Record<
+      Face,
+      [number, number, number]
+    >
+    for (const face of FACES) {
+      centerLab[face] = rgbToLab(samples[CENTER_INDICES[face]])
+    }
+
+    // Find the assignment of center positions -> WCA faces that minimizes the
+    // total Lab distance. Brute-force over all 720 permutations.
+    let bestPerm: Face[] | null = null
+    let bestTotal = Infinity
+    function permute(arr: Face[], start: number) {
+      if (start === arr.length) {
+        let total = 0
+        for (let i = 0; i < FACES.length; i++) {
+          total += labDistance(centerLab[FACES[i]], wcaLab[arr[i]])
+        }
+        if (total < bestTotal) {
+          bestTotal = total
+          bestPerm = arr.slice()
+        }
+        return
+      }
+      for (let i = start; i < arr.length; i++) {
+        ;[arr[start], arr[i]] = [arr[i], arr[start]]
+        permute(arr, start + 1)
+        ;[arr[start], arr[i]] = [arr[i], arr[start]]
+      }
+    }
+    permute(FACES.slice() as Face[], 0)
+
+    const centerPosToWcaFace: Record<Face, Face> = {} as Record<Face, Face>
+    for (let i = 0; i < FACES.length; i++) {
+      centerPosToWcaFace[FACES[i]] = bestPerm![i]
+    }
+
+    // Each sticker takes the WCA letter of whichever center it most resembles.
+    for (const p of PLACEMENTS) {
+      const closestCenter = nearestFace(rgbToLab(samples[p.index]), centerLab)
+      stateChars[p.index] = centerPosToWcaFace[closestCenter]
+    }
+    return { ok: true, state: stateChars.join(''), samples }
+  }
+
+  // No calibration: classify each sticker against the fixed WCA palette directly.
+  for (const p of PLACEMENTS) {
+    stateChars[p.index] = nearestFace(rgbToLab(samples[p.index]), wcaLab)
+  }
   return { ok: true, state: stateChars.join(''), samples }
 }
