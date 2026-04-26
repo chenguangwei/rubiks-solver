@@ -92,7 +92,34 @@ button.primary:hover:not(:disabled) {
 }
 
 .cube-area {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
   margin: 1rem 0;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .cube-area {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cube-net {
+  min-width: 0;
+}
+
+.cube-3d {
+  aspect-ratio: 1;
+  background: #f4f5f7;
+  border: 1px solid #e2e4ea;
+  border-radius: 8px;
+  min-height: 280px;
+  cursor: grab;
+}
+
+.cube-3d:active {
+  cursor: grabbing;
 }
 
 .valid {

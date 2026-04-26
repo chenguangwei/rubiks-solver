@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Cube3D } from './Cube3D'
 import { CubeNet } from './CubeNet'
 import { SOLVED_STATE, validateState } from './cube'
 import type { Face } from './cube'
@@ -259,12 +260,17 @@ function App() {
       {parseError && <p className="error">Image parse error: {parseError}</p>}
 
       <section className="cube-area">
-        <CubeNet
-          state={displayState}
-          editable={!moves}
-          onChange={handleStickerChange}
-          highlightIndices={highlight}
-        />
+        <div className="cube-net">
+          <CubeNet
+            state={displayState}
+            editable={!moves}
+            onChange={handleStickerChange}
+            highlightIndices={highlight}
+          />
+        </div>
+        <div className="cube-3d">
+          <Cube3D state={displayState} />
+        </div>
       </section>
 
       {!moves && (
