@@ -42,6 +42,25 @@ describe('solver-core', () => {
     expect(applyMoves(scrambled, moves)).toBe(solvedState())
   })
 
+  it('returns the optimal 1-move solution for a 1-move scramble (regression for #user-bug)', () => {
+    // cubejs.solve() default returns 9 moves for a B'-away cube; the
+    // short-probe should catch this as 1 move.
+    const scrambled = applyMoves(solvedState(), "B'")
+    const moves = solveFastSync(scrambled)
+    expect(moves).toHaveLength(1)
+    expect(applyMoves(scrambled, moves)).toBe(solvedState())
+  })
+
+  it('returns optimal solutions for 2-, 3-, and 4-move scrambles', () => {
+    for (const scramble of ["B' U", "B' U R", "B' U R F"]) {
+      const expectedLen = scramble.split(' ').filter(Boolean).length
+      const scrambled = applyMoves(solvedState(), scramble)
+      const moves = solveFastSync(scrambled)
+      expect(moves.length).toBe(expectedLen)
+      expect(applyMoves(scrambled, moves)).toBe(solvedState())
+    }
+  })
+
   it('round-trips 30 random scrambles', () => {
     for (let i = 0; i < 30; i++) {
       const scrambled = randomState()

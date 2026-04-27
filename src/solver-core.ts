@@ -44,6 +44,12 @@ export function isSolverCoreReady(): boolean {
  * the optimal one. Pass a tighter maxDepth to ask for a shorter solution
  * (and accept it may take much longer / throw if no such solution exists).
  */
+/** Bound on the short-solution probe. cubejs.solve(k) at k <= this is
+ * cheap (well under 10ms each empirically) and catches the common
+ * "obviously easy" case where cubejs.solve() default would return a
+ * 9–12 move algorithm for a cube that's 1–4 moves from solved. */
+const SHORT_PROBE_MAX_K = 4
+
 function solveCanonical(canonical: string, maxDepth?: number): Move[] {
   const cube = Cube.fromString(canonical)
   if (cube.asString() !== canonical) throw new UnsolvableCubeError()
@@ -52,7 +58,29 @@ function solveCanonical(canonical: string, maxDepth?: number): Move[] {
   // trivial undo pairs, so it ends up emitting a 14-move "neutral" sequence.
   // We just want zero moves.
   if (cube.isSolved()) return []
-  const algorithm = maxDepth !== undefined ? cube.solve(maxDepth) : cube.solve()
+
+  let algorithm: string | null = null
+  if (maxDepth !== undefined) {
+    algorithm = cube.solve(maxDepth)
+  } else {
+    // cubejs's default solve() prefers phase1+phase2 splits and produces
+    // 9–12 move "solutions" for cubes that are actually only 1–4 moves
+    // from solved (e.g. a B'-from-solved cube gets solved as 9 moves
+    // instead of the obvious 1-move B). solve(k) for the EXACT optimal k
+    // does return the real shortest; iterating k=1..4 catches those.
+    // Total cost is ~10ms on the common (random scramble) case where
+    // none of these depths find a solution.
+    for (let k = 1; k <= SHORT_PROBE_MAX_K; k++) {
+      try {
+        algorithm = cube.solve(k)
+        break
+      } catch {
+        // No ≤k-move solution exists at this exact bound; try the next.
+      }
+    }
+    if (algorithm === null) algorithm = cube.solve()
+  }
+
   const verifyCube = Cube.fromString(canonical)
   if (algorithm.trim().length > 0) verifyCube.move(algorithm)
   if (!verifyCube.isSolved()) throw new UnsolvableCubeError()
