@@ -77,7 +77,30 @@ function App() {
     initSolver().then(() => setSolverStatus('ready'))
   }, [])
 
+  // stateRef tracks the latest committed state so async solve handlers can
+  // detect whether the cube changed during their await window and discard
+  // stale results.
+  const stateRef = useRef(state)
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
+  const solveBusyRef = useRef<SolveMode | null>(null)
+  useEffect(() => {
+    solveBusyRef.current = solveBusy
+  }, [solveBusy])
+
   function setStateAndClearMoves(next: string) {
+    // If a solve is in flight when the cube state changes (random scramble,
+    // reset, sticker edit, paste, drop), terminate the worker so its result
+    // doesn't arrive later and overwrite the new state with stale moves.
+    // The worker re-spawns + re-inits transparently on the next solve.
+    if (solveBusyRef.current) {
+      terminateSolver()
+      setSolveBusy(null)
+      setTightInfo(null)
+      setSolverStatus('initializing')
+      initSolver().then(() => setSolverStatus('ready'))
+    }
     setState(next)
     setMoves(null)
     setSolveMode(null)
@@ -223,12 +246,18 @@ function App() {
     setStepIndex(0)
     setAutoPlay(false)
     setSolveBusy('fast')
+    const requestState = state
     try {
-      const result = await solve(state)
+      const result = await solve(requestState)
+      // Belt-and-suspenders: if the cube changed under us (and the worker
+      // wasn't terminated for some reason), don't apply stale moves.
+      if (stateRef.current !== requestState) return
       setMoves(result)
       setSolveMode('fast')
     } catch (err) {
-      setSolveError({ message: err instanceof Error ? err.message : String(err) })
+      if (stateRef.current !== requestState) return
+      const message = err instanceof Error ? err.message : String(err)
+      if (message !== 'Solver cancelled') setSolveError({ message })
     } finally {
       setSolveBusy(null)
     }
@@ -243,6 +272,7 @@ function App() {
     setAutoPlay(false)
     setSolveBusy('tight')
 
+    const requestState = state
     let baseline = 0
     let latestProgress: string[] | null = null
     let timedOut = false
@@ -253,16 +283,18 @@ function App() {
     const hardTimer = window.setTimeout(() => {
       timedOut = true
       terminateSolver()
-      if (latestProgress) {
-        setMoves(latestProgress)
-        setSolveMode('tight')
-        setTightInfo({ baseline, current: latestProgress.length })
-        const saved = Math.max(0, baseline - latestProgress.length)
-        if (saved > 0) bumpSavedTotals(saved)
-      } else {
-        setSolveError({
-          message: `Tight solve timed out after ${TIGHT_HARD_TIMEOUT_MS / 1000}s with no result. Try Solve (fast) or Random scramble.`,
-        })
+      if (stateRef.current === requestState) {
+        if (latestProgress) {
+          setMoves(latestProgress)
+          setSolveMode('tight')
+          setTightInfo({ baseline, current: latestProgress.length })
+          const saved = Math.max(0, baseline - latestProgress.length)
+          if (saved > 0) bumpSavedTotals(saved)
+        } else {
+          setSolveError({
+            message: `Tight solve timed out after ${TIGHT_HARD_TIMEOUT_MS / 1000}s with no result. Try Solve (fast) or Random scramble.`,
+          })
+        }
       }
       setSolveBusy(null)
       setSolverStatus('initializing')
@@ -270,16 +302,18 @@ function App() {
     }, TIGHT_HARD_TIMEOUT_MS)
 
     try {
-      const result = await solveTight(state, {
+      const result = await solveTight(requestState, {
         deadlineMs: TIGHT_DEADLINE_MS,
         onProgress: ({ moves: m, phase }) => {
+          if (stateRef.current !== requestState) return
           if (phase === 'baseline') baseline = m.length
           latestProgress = m
           setTightInfo({ baseline, current: m.length })
         },
       })
       window.clearTimeout(hardTimer)
-      if (timedOut) return // already handled by hard timer
+      if (timedOut) return
+      if (stateRef.current !== requestState) return
       setMoves(result)
       setSolveMode('tight')
       setTightInfo({ baseline, current: result.length })
@@ -287,7 +321,8 @@ function App() {
       if (saved > 0) bumpSavedTotals(saved)
     } catch (err) {
       window.clearTimeout(hardTimer)
-      if (timedOut) return // hard timer beat us, already handled
+      if (timedOut) return
+      if (stateRef.current !== requestState) return
       const message = err instanceof Error ? err.message : String(err)
       if (message !== 'Solver cancelled') setSolveError({ message })
     } finally {

@@ -74,6 +74,7 @@ patches/
 
 ## Releases
 
+- **v0.4.2** — Fixes a race condition where changing the cube state (Reset, Random scramble, sticker edit, paste, drop) while a tight solve was running could surface stale moves computed for the *old* state, applied to the new one — produced visually correct-looking but actually-scrambling "solutions". State changes during a solve now terminate the worker and a stale-result check on the main thread guards the rare case where a result arrives anyway.
 - **v0.4.1** — Solving an already-solved cube now returns 0 moves with an "Already solved" banner. Previously cubejs's iterative-deepening pruning would emit a 14-move "neutral" sequence (e.g. `R L U2 R L F2 R2 U2 R2 F2 R2 U2 F2 L2`) instead of the empty solution.
 - **v0.4.0** — `Solve (tightest)` button: iterative-deepening Kociemba aiming at God's Number (20 moves) within a ~9-second hard deadline. Solver moved into a Web Worker so the UI stays responsive while it churns. Lifetime "moves saved" counter tracked in localStorage.
 - **v0.3.0** — Interactive 3D cube alongside the 2D net, with mouse orbit controls and animated face rotations during step-through. Detect unreachable cube states (parity violations, permuted centers) and surface a clear error instead of returning a partial solve.
