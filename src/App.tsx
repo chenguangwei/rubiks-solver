@@ -235,13 +235,11 @@ function App() {
 
   // Auto-play tick.
   useEffect(() => {
-    if (!autoPlay || !moves) return
-    if (stepIndex >= moves.length) {
-      setAutoPlay(false)
-      return
-    }
+    if (!autoPlay || !moves || stepIndex >= moves.length) return
     const id = window.setTimeout(() => {
-      setStepIndex((i) => Math.min(moves.length, i + 1))
+      const nextStep = Math.min(moves.length, stepIndex + 1)
+      setStepIndex(nextStep)
+      if (nextStep >= moves.length) setAutoPlay(false)
     }, SPEED_MS[playSpeed])
     return () => window.clearTimeout(id)
   }, [autoPlay, stepIndex, moves, playSpeed])

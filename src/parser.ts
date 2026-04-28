@@ -243,7 +243,7 @@ export function parseNet(img: ImageBuffer, options: ParseOptions = {}): ParseRes
     return best
   }
 
-  let stateChars: string[] = new Array(54)
+  const stateChars: string[] = new Array(54)
 
   if (calibrate) {
     const centerLab: Record<Face, [number, number, number]> = {} as Record<

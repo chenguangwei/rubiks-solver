@@ -174,21 +174,24 @@ function Scene({ state }: { state: string }) {
   useEffect(() => {
     if (state === rendered) return
     if (turn) return // an animation is already in flight; will sync on completion
-    const move = detectSingleMove(rendered, state)
-    const parsed = move ? parseMove(move) : null
-    if (parsed) {
-      setTurn({
-        face: parsed.face,
-        turns: parsed.turns,
-        startState: rendered,
-        endState: state,
-        durationMs: parsed.turns === 2 ? 380 : 240,
-      })
-      setStartedAt(performance.now())
-    } else {
-      // Multi-move jump (paste, scramble, reset, etc.) — snap.
-      setRendered(state)
-    }
+    const frame = window.requestAnimationFrame(() => {
+      const move = detectSingleMove(rendered, state)
+      const parsed = move ? parseMove(move) : null
+      if (parsed) {
+        setTurn({
+          face: parsed.face,
+          turns: parsed.turns,
+          startState: rendered,
+          endState: state,
+          durationMs: parsed.turns === 2 ? 380 : 240,
+        })
+        setStartedAt(performance.now())
+      } else {
+        // Multi-move jump (paste, scramble, reset, etc.) — snap.
+        setRendered(state)
+      }
+    })
+    return () => window.cancelAnimationFrame(frame)
   }, [state, rendered, turn])
 
   function handleAnimationDone() {
