@@ -41,10 +41,30 @@ const TIGHT_HARD_TIMEOUT_MS = 9000
 const LS_MOVES_SAVED = 'rubiks-solver:moves-saved'
 const LS_TIGHT_COUNT = 'rubiks-solver:tight-count'
 
+function getLocalStorage(): Storage | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const storage = window.localStorage
+    if (
+      typeof storage?.getItem !== 'function' ||
+      typeof storage?.setItem !== 'function'
+    ) {
+      return null
+    }
+    return storage
+  } catch {
+    return null
+  }
+}
+
 function readNumber(key: string): number {
-  const raw = typeof window !== 'undefined' ? localStorage.getItem(key) : null
+  const raw = getLocalStorage()?.getItem(key) ?? null
   const n = raw ? parseInt(raw, 10) : 0
   return Number.isFinite(n) ? n : 0
+}
+
+function writeNumber(key: string, value: number) {
+  getLocalStorage()?.setItem(key, String(value))
 }
 
 function readInitialState(): string {
@@ -333,8 +353,8 @@ function App() {
   function bumpSavedTotals(saved: number) {
     const newSaved = savedTotals.movesSaved + saved
     const newCount = savedTotals.tightCount + 1
-    localStorage.setItem(LS_MOVES_SAVED, String(newSaved))
-    localStorage.setItem(LS_TIGHT_COUNT, String(newCount))
+    writeNumber(LS_MOVES_SAVED, newSaved)
+    writeNumber(LS_TIGHT_COUNT, newCount)
     setSavedTotals({ movesSaved: newSaved, tightCount: newCount })
   }
 
