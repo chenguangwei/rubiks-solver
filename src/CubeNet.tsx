@@ -1,5 +1,6 @@
 import { FACE_COLORS, FACES, GRID_COLS, GRID_ROWS, PLACEMENTS } from './cube'
 import type { Face } from './cube'
+import type { KeyboardEvent } from 'react'
 
 const STICKER_SIZE = 40
 const STICKER_GAP = 2
@@ -31,6 +32,12 @@ export function CubeNet({
     onChange(index, next)
   }
 
+  function handleKeyDown(e: KeyboardEvent<SVGGElement>, index: number) {
+    if (e.key !== 'Enter' && e.key !== ' ') return
+    e.preventDefault()
+    handleClick(index)
+  }
+
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
@@ -47,25 +54,33 @@ export function CubeNet({
         const y = p.row * STICKER_SIZE + STICKER_GAP / 2
         const size = STICKER_SIZE - STICKER_GAP
         const isHighlighted = highlightSet.has(p.index)
+        const label = `${p.face}${p.facePos + 1}: ${face}`
         return (
-          <rect
+          <g
             key={p.index}
-            x={x}
-            y={y}
-            width={size}
-            height={size}
-            rx={RADIUS}
-            ry={RADIUS}
-            fill={fill}
-            stroke={isHighlighted ? '#000' : '#222'}
-            strokeWidth={isHighlighted ? 3 : 1}
-            data-index={p.index}
-            data-face={face}
+            role={editable ? 'button' : undefined}
+            tabIndex={editable ? 0 : undefined}
+            aria-label={editable ? label : undefined}
             style={editable ? { cursor: 'pointer' } : undefined}
             onClick={editable ? () => handleClick(p.index) : undefined}
+            onKeyDown={editable ? (e) => handleKeyDown(e, p.index) : undefined}
           >
-            <title>{`${p.face}${p.facePos + 1}: ${face}`}</title>
-          </rect>
+            <rect
+              x={x}
+              y={y}
+              width={size}
+              height={size}
+              rx={RADIUS}
+              ry={RADIUS}
+              fill={fill}
+              stroke={isHighlighted ? '#000' : '#222'}
+              strokeWidth={isHighlighted ? 3 : 1}
+              data-index={p.index}
+              data-face={face}
+            >
+              <title>{label}</title>
+            </rect>
+          </g>
         )
       })}
     </svg>

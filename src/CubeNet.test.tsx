@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { CubeNet } from './CubeNet'
 import { FACE_COLORS, SOLVED_STATE, setSticker } from './cube'
@@ -37,5 +37,14 @@ describe('<CubeNet />', () => {
     const { container } = render(<CubeNet state={SOLVED_STATE} editable onChange={onChange} />)
     fireEvent.click(container.querySelector('rect[data-index="0"]')!)
     expect(onChange).toHaveBeenCalledWith(0, 'R') // U → R is the next in FACES order
+  })
+
+  it('lets keyboard users change editable stickers', () => {
+    const onChange = vi.fn()
+    render(<CubeNet state={SOLVED_STATE} editable onChange={onChange} />)
+    const firstSticker = screen.getByRole('button', { name: 'U1: U' })
+    firstSticker.focus()
+    fireEvent.keyDown(firstSticker, { key: 'Enter' })
+    expect(onChange).toHaveBeenCalledWith(0, 'R')
   })
 })
