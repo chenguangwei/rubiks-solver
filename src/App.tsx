@@ -121,6 +121,7 @@ function App() {
       setSolverStatus('initializing')
       initSolver().then(() => setSolverStatus('ready'))
     }
+    stateRef.current = next
     setState(next)
     setMoves(null)
     setSolveMode(null)
@@ -140,6 +141,9 @@ function App() {
         return
       }
       setStateAndClearMoves(result.state)
+      if (validateState(result.state).ok && (solverStatus === 'ready' || isSolverReady())) {
+        void solveFastForState(result.state)
+      }
     } catch (err) {
       setParseError(err instanceof Error ? err.message : String(err))
     }
@@ -256,7 +260,7 @@ function App() {
     setStateAndClearMoves(state.slice(0, index) + nextFace + state.slice(index + 1))
   }
 
-  async function handleSolveFast() {
+  async function solveFastForState(requestState: string) {
     setSolveError(null)
     setMoves(null)
     setSolveMode(null)
@@ -264,7 +268,6 @@ function App() {
     setStepIndex(0)
     setAutoPlay(false)
     setSolveBusy('fast')
-    const requestState = state
     try {
       const result = await solve(requestState)
       // Belt-and-suspenders: if the cube changed under us (and the worker
@@ -279,6 +282,10 @@ function App() {
     } finally {
       setSolveBusy(null)
     }
+  }
+
+  async function handleSolveFast() {
+    await solveFastForState(state)
   }
 
   async function handleSolveTight() {
