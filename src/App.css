@@ -77,6 +77,16 @@ button.primary:hover:not(:disabled) {
   background: #00368a;
 }
 
+button.secondary-plain {
+  background: white;
+}
+
+.camera-note {
+  margin: -0.35rem 0 1rem;
+  color: #666;
+  font-size: 0.85rem;
+}
+
 .status {
   font-size: 0.85rem;
   color: #666;

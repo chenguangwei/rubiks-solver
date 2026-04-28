@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ChangeEvent } from 'react'
 import { Cube3D } from './Cube3D'
 import { CubeNet } from './CubeNet'
 import { SOLVED_STATE, validateState } from './cube'
@@ -92,6 +93,7 @@ function App() {
     tightCount: readNumber(LS_TIGHT_COUNT),
   })
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     initSolver().then(() => setSolverStatus('ready'))
@@ -147,6 +149,12 @@ function App() {
     } catch (err) {
       setParseError(err instanceof Error ? err.message : String(err))
     }
+  }
+
+  function handleFileInputChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) handleFile(file)
+    e.target.value = ''
   }
 
   // Paste image from clipboard (⌘V / Ctrl+V) anywhere on the page.
@@ -392,8 +400,8 @@ function App() {
       <header>
         <h1>RubikSolver</h1>
         <p className="tagline">
-          Upload, paste, or drop an unfolded-net image of a scrambled cube — get a
-          step-by-step solution.
+          Import an unfolded-net image of a scrambled cube — valid scans solve
+          automatically.
         </p>
       </header>
 
@@ -403,13 +411,24 @@ function App() {
           type="file"
           accept="image/*"
           style={{ display: 'none' }}
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) handleFile(file)
-            e.target.value = ''
-          }}
+          onChange={handleFileInputChange}
         />
-        <button onClick={() => fileInputRef.current?.click()}>Upload net image</button>
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          style={{ display: 'none' }}
+          onChange={handleFileInputChange}
+        />
+        <button onClick={() => fileInputRef.current?.click()}>Import net image</button>
+        <button
+          className="secondary-plain"
+          onClick={() => cameraInputRef.current?.click()}
+          title="Current scanner expects a flat unfolded-net image. Real cubes need a future six-face capture flow."
+        >
+          Use camera
+        </button>
         <button onClick={() => setStateAndClearMoves(randomState())}>Random scramble</button>
         <button onClick={() => setStateAndClearMoves(SOLVED_STATE)}>Reset</button>
         <button onClick={handleShare} title="Copy a link that reproduces this exact state">
@@ -419,6 +438,10 @@ function App() {
           Solver: {solverStatus === 'ready' ? 'ready' : 'initializing…'}
         </span>
       </section>
+      <p className="camera-note">
+        Real cube photos require six guided face captures; a single photo cannot see
+        all stickers.
+      </p>
 
       {shareFeedback && <p className="share-feedback">{shareFeedback}</p>}
       {parseError && <p className="error">Image parse error: {parseError}</p>}

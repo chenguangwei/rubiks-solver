@@ -59,7 +59,7 @@ patches/
 
 ## Known limitations
 
-- **The parser is tuned for synthetic flat-net images** (in-app renderer or similar tools like [Ruwix Cube Solver](https://ruwix.com/online-puzzle-simulators/)). Real-cube photos would need perspective correction, lighting normalization, and a 6-face capture flow — see roadmap below.
+- **The parser is tuned for synthetic flat-net images** (in-app renderer or similar tools like [Ruwix Cube Solver](https://ruwix.com/online-puzzle-simulators/)). A single real-cube photo cannot expose all 54 stickers, so real-camera support needs perspective correction, lighting normalization, and a guided 6-face capture flow — see roadmap below.
 - **Tightest mode is best-effort, not formally guaranteed.** It iteratively re-runs cubejs with tighter `maxDepth` bounds within a ~9-second hard deadline. Most cubes reach a 20-move solution; some don't fit the budget and fall back to whatever progress was made (often 21 moves). True God's-Number guarantee would require min2phase or Korf's optimal solver — see roadmap.
 - **Bundle is ~312 KB gzipped main + 20 KB worker chunk** (~332 KB combined), dominated by three.js + react-three-fiber. Could be code-split so the 3D pane loads on demand, but for a cube-solver app the 3D view is most of the point.
 
@@ -69,7 +69,12 @@ patches/
 - [x] **Tighter solutions, Tier 1** (v0.4) — `Solve (tightest)` button. Iterates Kociemba with `maxDepth = baseline−1, baseline−2, …, 20` until either the budget runs out or no shorter solution exists at that depth. Web Worker keeps the UI responsive; hard 9s timeout prevents pathological cubes from hanging.
 - [ ] **Tighter solutions, Tier 2** — Swap `cubejs` for a [min2phase](https://github.com/cs0x7f/min2phase) port (Chen Shuang). Heavier pruning tables and symmetry reduction; almost always 20 moves in milliseconds. ~80 KB gzipped bundle delta.
 - [ ] **Tighter solutions, Tier 3** — Korf-style optimal IDA* (max of three pruning tables: corners + two halves of edges). Formally guaranteed ≤20 moves. Pattern databases are tens of MB — likely a server-side path rather than a fully-client solver.
-- [ ] Real-camera capture flow (six face captures, center-anchored color calibration)
+- [ ] Real-camera capture flow:
+  - six guided face captures, because one photo cannot see the whole cube
+  - perspective correction for each photographed face
+  - center-color calibration per capture session
+  - low-confidence sticker review before solving
+  - automatic solve after valid reconstruction
 - [ ] iOS native version (Swift / SwiftUI / VisionKit)
 
 ## Releases
