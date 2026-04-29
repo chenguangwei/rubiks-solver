@@ -14,6 +14,14 @@ export const LANGUAGE_OPTIONS: readonly { code: Language; label: string; nativeN
 
 const LS_LANGUAGE = 'rubiks-solver:language'
 
+const HTML_LANG: Record<Language, string> = {
+  en: 'en',
+  zh: 'zh-Hans',
+  ja: 'ja',
+  ko: 'ko',
+  fr: 'fr',
+}
+
 type Messages = Record<string, string>
 
 const en: Messages = {
@@ -878,7 +886,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>(readInitialLanguage)
 
   useEffect(() => {
-    document.documentElement.lang = language
+    document.documentElement.lang = HTML_LANG[language]
     try {
       window.localStorage.setItem(LS_LANGUAGE, language)
     } catch {

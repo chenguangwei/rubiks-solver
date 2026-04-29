@@ -9,6 +9,7 @@ import { loadImageToBuffer } from './imageLoader'
 import { parseMove, stickerIndicesForFace } from './moves'
 import type { ParsedMove } from './moves'
 import { parseNet } from './parser'
+import { useSeoMetadata } from './seo'
 import { decodeStateFromHash, shareUrl } from './share'
 import {
   applyMoves,
@@ -176,6 +177,7 @@ function readInitialState(): string {
 
 function App() {
   const { language, setLanguage, t } = useI18n()
+  useSeoMetadata(language)
   const [state, setState] = useState(readInitialState)
   const [solverStatus, setSolverStatus] = useState<SolverStatus>(
     isSolverReady() ? 'ready' : 'initializing',

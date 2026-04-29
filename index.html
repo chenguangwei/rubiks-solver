@@ -4,10 +4,157 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RubikSolver</title>
+    <meta
+      name="description"
+      content="Solve a 3x3 Rubik's Cube online with editable cube net input, image import, validation, Kociemba solving, 3D preview, and step-by-step playback."
+    />
+    <meta
+      name="keywords"
+      content="Rubik's Cube solver, 3x3 cube solver, online cube solver, Kociemba solver, cube algorithm, RubikSolver"
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="googlebot" content="index, follow, max-image-preview:large" />
+    <meta name="author" content="RubikSolver" />
+    <meta name="application-name" content="RubikSolver" />
+    <meta name="theme-color" content="#1267dc" />
+    <link rel="canonical" href="https://rubikssolver.pro/" />
+    <link rel="alternate" href="https://rubikssolver.pro/" hreflang="x-default" />
+    <link rel="alternate" href="https://rubikssolver.pro/" hreflang="en" />
+    <link rel="alternate" href="https://rubikssolver.pro/" hreflang="zh-Hans" />
+    <link rel="alternate" href="https://rubikssolver.pro/" hreflang="ja" />
+    <link rel="alternate" href="https://rubikssolver.pro/" hreflang="ko" />
+    <link rel="alternate" href="https://rubikssolver.pro/" hreflang="fr" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="RubikSolver" />
+    <meta property="og:title" content="RubikSolver - Online 3x3 Rubik's Cube Solver" />
+    <meta
+      property="og:description"
+      content="Set a 3x3 cube state, validate it, generate a Kociemba solution, and follow the moves in a 3D browser-based solver."
+    />
+    <meta property="og:url" content="https://rubikssolver.pro/" />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="RubikSolver - Online 3x3 Rubik's Cube Solver" />
+    <meta
+      name="twitter:description"
+      content="Browser-based 3x3 Rubik's Cube solver with image import, validation, 3D preview, and step-by-step playback."
+    />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "@id": "https://rubikssolver.pro/#webapp",
+            "name": "RubikSolver",
+            "url": "https://rubikssolver.pro/",
+            "applicationCategory": ["GameApplication", "EducationalApplication"],
+            "operatingSystem": "Any",
+            "isAccessibleForFree": true,
+            "inLanguage": ["en", "zh-Hans", "ja", "ko", "fr"],
+            "description": "RubikSolver is a browser-based 3x3 Rubik's Cube solver with editable cube net input, image import, validation, Kociemba solving, 3D preview, and step-by-step playback.",
+            "featureList": [
+              "Editable 3x3 cube net",
+              "Flat-net image import",
+              "Reachability validation",
+              "Kociemba solving",
+              "3D cube preview",
+              "Step-by-step move playback",
+              "Shareable cube-state links"
+            ]
+          },
+          {
+            "@type": "HowTo",
+            "@id": "https://rubikssolver.pro/#how-to-solve",
+            "name": "How to solve a 3x3 Rubik's Cube with RubikSolver",
+            "step": [
+              {
+                "@type": "HowToStep",
+                "name": "Set the cube",
+                "text": "Start from a legal random scramble, import a full cube net image, use camera capture, or correct stickers manually."
+              },
+              {
+                "@type": "HowToStep",
+                "name": "Validate the cube",
+                "text": "Check color counts, center stickers, and whether the state is reachable on a real 3x3 cube."
+              },
+              {
+                "@type": "HowToStep",
+                "name": "Generate a solution",
+                "text": "Run the Kociemba solver to produce a fast solution, or use the tighter solve mode for a shorter best-effort sequence."
+              },
+              {
+                "@type": "HowToStep",
+                "name": "Follow the moves",
+                "text": "Step through each move, autoplay the sequence, and inspect the cube in 3D."
+              }
+            ]
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://rubikssolver.pro/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "What is RubikSolver?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "RubikSolver is a free online 3x3 Rubik's Cube solver that runs in the browser and generates step-by-step solution moves."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can RubikSolver check impossible cube states?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. It validates color counts, center stickers, and reachability before solving a 3x3 cube state."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does RubikSolver work without installing an app?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. RubikSolver is a client-side web app and works directly in a modern browser."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <title>RubikSolver - Online 3x3 Rubik's Cube Solver</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main>
+        <h1>RubikSolver - Online 3x3 Rubik's Cube Solver</h1>
+        <p>
+          RubikSolver helps solve a 3x3 Rubik's Cube in the browser. Set a cube
+          state, validate it, generate a Kociemba solution, and follow each move
+          with a 3D preview.
+        </p>
+        <section>
+          <h2>What RubikSolver does</h2>
+          <ul>
+            <li>Editable 3x3 cube net for manual sticker correction.</li>
+            <li>Image import and camera-assisted capture for cube input.</li>
+            <li>Validation for color counts and physically reachable states.</li>
+            <li>Fast and tighter best-effort Kociemba solve modes.</li>
+            <li>Step-by-step solution playback with Rubik's Cube notation.</li>
+          </ul>
+        </section>
+        <section>
+          <h2>How to use the cube solver</h2>
+          <ol>
+            <li>Set the cube from a scramble, image, camera capture, or manual net.</li>
+            <li>Check that the cube state is valid and reachable.</li>
+            <li>Click Solve to generate the solution algorithm.</li>
+            <li>Follow the moves one by one or use autoplay.</li>
+          </ol>
+        </section>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
