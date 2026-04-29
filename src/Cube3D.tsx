@@ -35,7 +35,7 @@ const ALL_CUBIES: readonly Vec3[] = (() => {
  * Map a state string to a per-cubie array of 6 face colors. Materials are
  * indexed in three.js BoxGeometry order: +x, -x, +y, -y, +z, -z.
  */
-function colorsForState(state: string): Map<string, (string | null)[]> {
+function colorsForState(state: string, highlights?: readonly number[]): Map<string, (string | null)[]> {
   const out = new Map<string, (string | null)[]>()
   for (const [x, y, z] of ALL_CUBIES) {
     const key = cubieKey(x, y, z)
@@ -44,6 +44,9 @@ function colorsForState(state: string): Map<string, (string | null)[]> {
     for (const s of stickers) {
       const letter = state[s.index] as Face
       const color = FACE_COLORS[letter] ?? '#888'
+      const isDimmed = highlights && !highlights.includes(s.index)
+      const finalColor = isDimmed ? '#444444' : color
+
       const slot =
         s.normal[0] === 1
           ? 0
@@ -56,7 +59,7 @@ function colorsForState(state: string): Map<string, (string | null)[]> {
                 : s.normal[2] === 1
                   ? 4
                   : 5
-      faces[slot] = color
+      faces[slot] = finalColor
     }
     out.set(key, faces)
   }
@@ -65,8 +68,8 @@ function colorsForState(state: string): Map<string, (string | null)[]> {
 
 type Cubie = { key: string; position: Vec3; colors: (string | null)[] }
 
-function buildCubies(state: string): Cubie[] {
-  const colors = colorsForState(state)
+function buildCubies(state: string, highlights?: readonly number[]): Cubie[] {
+  const colors = colorsForState(state, highlights)
   return ALL_CUBIES.map(([x, y, z]) => ({
     key: cubieKey(x, y, z),
     position: [x, y, z],
@@ -121,6 +124,8 @@ type AnimatingTurn = {
   startState: string
   /** Animation duration in ms. */
   durationMs: number
+  /** Highlights for the turn animation */
+  highlights?: readonly number[]
 }
 
 function RotatingLayer({
@@ -151,7 +156,7 @@ function RotatingLayer({
 
   // While rotating, the layer cubies show the *start* state (not yet turned)
   // and the group's rotation visually performs the turn.
-  const cubies = buildCubies(turn.startState).filter((c) =>
+  const cubies = buildCubies(turn.startState, turn.highlights).filter((c) =>
     cubieOnFace(turn.face, c.position),
   )
 
@@ -164,7 +169,7 @@ function RotatingLayer({
   )
 }
 
-function Scene({ state }: { state: string }) {
+function Scene({ state, highlights }: { state: string, highlights?: readonly number[] }) {
   // Internal rendered state — diverges from `state` during a turn animation
   // so we can render the start state on the moving layer.
   const [rendered, setRendered] = useState(state)
@@ -184,6 +189,7 @@ function Scene({ state }: { state: string }) {
           startState: rendered,
           endState: state,
           durationMs: parsed.turns === 2 ? 380 : 240,
+          highlights,
         })
         setStartedAt(performance.now())
       } else {
@@ -202,7 +208,7 @@ function Scene({ state }: { state: string }) {
 
   // Static cubies = cubies NOT being animated this frame.
   const staticState = turn ? turn.startState : rendered
-  const allStatic = useMemo(() => buildCubies(staticState), [staticState])
+  const allStatic = useMemo(() => buildCubies(staticState, highlights), [staticState, highlights])
   const filteredStatic = turn
     ? allStatic.filter((c) => !cubieOnFace(turn.face, c.position))
     : allStatic
@@ -227,10 +233,10 @@ function Scene({ state }: { state: string }) {
   )
 }
 
-export function Cube3D({ state }: { state: string }) {
+export function Cube3D({ state, highlights }: { state: string, highlights?: readonly number[] }) {
   return (
     <Canvas camera={{ position: [5.5, 5, 7], fov: 35 }} dpr={[1, 2]}>
-      <Scene state={state} />
+      <Scene state={state} highlights={highlights} />
     </Canvas>
   )
 }

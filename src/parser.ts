@@ -297,3 +297,40 @@ export function parseNet(img: ImageBuffer, options: ParseOptions = {}): ParseRes
   }
   return { ok: true, state: stateChars.join(''), samples }
 }
+
+/**
+ * Parse a single face (3x3 grid) from a tightly cropped image.
+ * Returns an array of 9 Face characters.
+ */
+export function parseFace(img: ImageBuffer, options: ParseOptions = {}): Face[] {
+  const sampleHalfWidth = options.sampleHalfWidth ?? 4
+  const stickerW = img.width / 3
+  const stickerH = img.height / 3
+  
+  const wcaLab: Record<Face, [number, number, number]> = {} as Record<Face, [number, number, number]>
+  for (const face of FACES) wcaLab[face] = rgbToLab(hexToRgb(FACE_COLORS[face]))
+
+  function nearestFace(lab: [number, number, number]): Face {
+    let best: Face = FACES[0]
+    let bestDist = Infinity
+    for (const face of FACES) {
+      const d = labDistance(lab, wcaLab[face])
+      if (d < bestDist) {
+        bestDist = d
+        best = face
+      }
+    }
+    return best
+  }
+
+  const faceChars: Face[] = []
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 3; col++) {
+      const cx = Math.floor((col + 0.5) * stickerW)
+      const cy = Math.floor((row + 0.5) * stickerH)
+      const sample = sampleAverage(img, cx, cy, sampleHalfWidth)
+      faceChars.push(nearestFace(rgbToLab(sample)))
+    }
+  }
+  return faceChars
+}

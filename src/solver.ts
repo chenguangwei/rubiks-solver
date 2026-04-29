@@ -8,6 +8,7 @@ import {
   solvedState,
 } from './solver-core'
 import type { Move, TightSolveProgress } from './solver-core'
+import { get, set } from 'idb-keyval'
 import type { WorkerInbound, WorkerOutbound } from './solver.worker'
 
 // Re-export sync utilities so consumers can keep importing from './solver'.
@@ -83,8 +84,15 @@ export type SolveTightOptions = {
   onProgress?: (p: TightSolveProgress) => void
 }
 
-export function solveTight(state: string, options: SolveTightOptions = {}): Promise<Move[]> {
-  return send(
+export async function solveTight(state: string, options: SolveTightOptions = {}): Promise<Move[]> {
+  const cacheKey = `tight-solve:${state}`
+  const cached = await get<Move[]>(cacheKey)
+  if (cached && cached.length > 0) {
+    if (options.onProgress) options.onProgress({ moves: cached, phase: 'done' })
+    return cached
+  }
+
+  const result = await send(
     {
       id: newId(),
       type: 'solve-tight',
@@ -93,13 +101,22 @@ export function solveTight(state: string, options: SolveTightOptions = {}): Prom
       minDepth: options.minDepth ?? 18,
     },
     options.onProgress,
-  ) as Promise<Move[]>
+  ) as Move[]
+
+  await set(cacheKey, result)
+  return result
+}
+
+export function cancelPendingSolves(): void {
+  for (const [, h] of pending) h.reject(new Error('Solver cancelled'))
+  pending.clear()
 }
 
 /**
  * Hard-cancel any in-flight solver work by terminating the worker. The next
  * solve() call will spawn a fresh worker and pay the ~3s init cost again.
- * Use sparingly — only when the user explicitly asks to cancel a tight solve.
+ * Use sparingly — only when the user explicitly asks to cancel a tight solve
+ * or a hard timeout is reached.
  */
 export function terminateSolver(): void {
   if (!worker) return
@@ -107,6 +124,5 @@ export function terminateSolver(): void {
   worker = null
   initialized = false
   initPromise = null
-  for (const [, h] of pending) h.reject(new Error('Solver cancelled'))
-  pending.clear()
+  cancelPendingSolves()
 }
