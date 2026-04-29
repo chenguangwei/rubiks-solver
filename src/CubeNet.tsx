@@ -1,5 +1,6 @@
 import { FACE_COLORS, FACES, GRID_COLS, GRID_ROWS, PLACEMENTS } from './cube'
 import type { Face } from './cube'
+import { useI18n } from './i18n'
 import type { CSSProperties, KeyboardEvent } from 'react'
 
 const STICKER_SIZE = 40
@@ -23,6 +24,7 @@ export function CubeNet({
   className,
   style,
 }: CubeNetProps) {
+  const { t } = useI18n()
   const width = GRID_COLS * STICKER_SIZE
   const height = GRID_ROWS * STICKER_SIZE
   const highlightSet = new Set(highlightIndices ?? [])
@@ -45,7 +47,7 @@ export function CubeNet({
       viewBox={`0 0 ${width} ${height}`}
       width="100%"
       role="img"
-      aria-label="Rubik's cube unfolded net"
+      aria-label={t('cubeNet.label')}
       className={className}
       style={{ maxWidth: width, display: 'block', ...style }}
     >
@@ -56,7 +58,7 @@ export function CubeNet({
         const y = p.row * STICKER_SIZE + STICKER_GAP / 2
         const size = STICKER_SIZE - STICKER_GAP
         const isHighlighted = highlightSet.has(p.index)
-        const label = `${p.face}${p.facePos + 1}: ${face}`
+        const label = t('cubeNet.stickerLabel', { position: `${p.face}${p.facePos + 1}`, face })
         return (
           <g
             key={p.index}

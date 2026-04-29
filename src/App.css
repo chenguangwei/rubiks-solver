@@ -205,6 +205,18 @@
   font-weight: 800;
 }
 
+.settings-grid select {
+  min-height: 40px;
+  margin-left: auto;
+  padding: 8px 34px 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.9);
+  font: inherit;
+  font-weight: 800;
+}
+
 .workspace-tabs button {
   height: 100%;
   min-width: 88px;

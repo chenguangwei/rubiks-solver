@@ -43,6 +43,7 @@ vi.mock('./solver', async () => {
 })
 
 import App from './App'
+import { I18nProvider } from './i18n'
 
 describe('App', () => {
   beforeEach(() => {
@@ -157,5 +158,19 @@ describe('App', () => {
 
     expect(screen.getByText(/Picked U/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Fill disabled/i })).toBeDisabled()
+  })
+
+  it('switches the interface language from settings', () => {
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    )
+
+    fireEvent.click(screen.getByTitle('Settings'))
+    fireEvent.change(screen.getByLabelText('Language'), { target: { value: 'zh' } })
+
+    expect(screen.getByRole('button', { name: /设置魔方/i })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /求解/i }).length).toBeGreaterThan(0)
   })
 })

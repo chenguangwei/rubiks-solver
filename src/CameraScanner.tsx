@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { FACES } from './cube'
 import type { Face } from './cube'
+import { useI18n } from './i18n'
 import { parseFace } from './parser'
 
 interface CameraScannerProps {
@@ -9,6 +10,7 @@ interface CameraScannerProps {
 }
 
 export default function CameraScanner({ onComplete, onCancel }: CameraScannerProps) {
+  const { t } = useI18n()
   const videoRef = useRef<HTMLVideoElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [scannedFaces, setScannedFaces] = useState<Partial<Record<Face, Face[]>>>({})
@@ -82,9 +84,9 @@ export default function CameraScanner({ onComplete, onCancel }: CameraScannerPro
   if (error) {
     return (
       <div className="camera-scanner error-state panel">
-        <h3>Camera Error</h3>
+        <h3>{t('camera.errorTitle')}</h3>
         <p>{error}</p>
-        <button onClick={onCancel}>Close</button>
+        <button onClick={onCancel}>{t('camera.close')}</button>
       </div>
     )
   }
@@ -115,10 +117,14 @@ export default function CameraScanner({ onComplete, onCancel }: CameraScannerPro
       </div>
 
       <div className="camera-controls">
-        <p className="instruction">Scan <strong>{targetFace}</strong> face (ensure white center is U, green is F)</p>
+        <p className="instruction">
+          {t('camera.scanInstruction', { face: targetFace })}
+        </p>
         <div className="camera-actions">
-          <button disabled={currentFaceIndex === 0} onClick={handleUndo}>Undo</button>
-          <button className="primary" onClick={handleCapture}>Capture {targetFace}</button>
+          <button disabled={currentFaceIndex === 0} onClick={handleUndo}>{t('camera.undo')}</button>
+          <button className="primary" onClick={handleCapture}>
+            {t('camera.capture', { face: targetFace })}
+          </button>
         </div>
       </div>
     </div>

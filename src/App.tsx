@@ -4,8 +4,10 @@ import { Cube3D } from './Cube3D'
 import { CubeNet } from './CubeNet'
 import { CENTER_INDICES, FACE_COLORS, FACES, SOLVED_STATE, validateState } from './cube'
 import type { Face } from './cube'
+import { LANGUAGE_OPTIONS, useI18n } from './i18n'
 import { loadImageToBuffer } from './imageLoader'
-import { describeMove, parseMove, stickerIndicesForFace } from './moves'
+import { parseMove, stickerIndicesForFace } from './moves'
+import type { ParsedMove } from './moves'
 import { parseNet } from './parser'
 import { decodeStateFromHash, shareUrl } from './share'
 import {
@@ -53,21 +55,12 @@ const TIGHT_HARD_TIMEOUT_MS = 9000
 const LS_MOVES_SAVED = 'rubiks-solver:moves-saved'
 const LS_TIGHT_COUNT = 'rubiks-solver:tight-count'
 
-const FACE_LABELS: Record<Face, string> = {
-  U: 'White',
-  R: 'Red',
-  F: 'Green',
-  D: 'Yellow',
-  L: 'Orange',
-  B: 'Blue',
-}
-
 const CENTER_INDEX_SET = new Set<number>(Object.values(CENTER_INDICES))
 
-const PRODUCT_TABS: readonly { id: WorkspaceTab; label: string }[] = [
-  { id: 'scan', label: 'Set Cube' },
-  { id: 'solve', label: 'Solve' },
-  { id: 'steps', label: 'Guide' },
+const PRODUCT_TABS: readonly { id: WorkspaceTab; labelKey: string }[] = [
+  { id: 'scan', labelKey: 'tabs.scan' },
+  { id: 'solve', labelKey: 'tabs.solve' },
+  { id: 'steps', labelKey: 'tabs.steps' },
 ]
 
 const LEARNING_STAGES: readonly LearningStage[] = ['Cross', 'F2L', 'OLL', 'PLL']
@@ -108,11 +101,11 @@ const LS_PRODUCT_HISTORY = 'rubiks-solver:product-history'
 const LS_PRODUCT_PB = 'rubiks-solver:product-challenge-pb'
 const LS_PRODUCT_RECORDS = 'rubiks-solver:product-challenge-records'
 
-const USER_LEVELS: readonly { id: UserLevel; label: string; description: string }[] = [
-  { id: 'newcomer', label: 'Newcomer', description: 'Guided scan and step-by-step solve' },
-  { id: 'learner', label: 'Learner', description: 'Understand notation and follow each move' },
-  { id: 'advanced', label: 'Advanced', description: 'Use tighter solves and manual turns' },
-  { id: 'player', label: 'Player', description: 'Scramble quickly and solve from the move list' },
+const USER_LEVELS: readonly { id: UserLevel; labelKey: string; descriptionKey: string }[] = [
+  { id: 'newcomer', labelKey: 'user.newcomer', descriptionKey: 'user.newcomer.desc' },
+  { id: 'learner', labelKey: 'user.learner', descriptionKey: 'user.learner.desc' },
+  { id: 'advanced', labelKey: 'user.advanced', descriptionKey: 'user.advanced.desc' },
+  { id: 'player', labelKey: 'user.player', descriptionKey: 'user.player.desc' },
 ]
 
 function getLocalStorage(): Storage | null {
@@ -182,6 +175,7 @@ function readInitialState(): string {
 }
 
 function App() {
+  const { language, setLanguage, t } = useI18n()
   const [state, setState] = useState(readInitialState)
   const [solverStatus, setSolverStatus] = useState<SolverStatus>(
     isSolverReady() ? 'ready' : 'initializing',
@@ -226,6 +220,15 @@ function App() {
     tightCount: readNumber(LS_TIGHT_COUNT),
   })
   const [showScanner, setShowScanner] = useState(false)
+
+  const faceLabel = (face: Face) => t(`face.color.${face}`)
+  const userLevelCopy = USER_LEVELS.find((level) => level.id === userLevel)
+  const describeMoveText = (move: ParsedMove) => {
+    const face = t(`face.name.${move.face}`)
+    if (move.turns === 1) return t('move.clockwise', { face })
+    if (move.turns === -1) return t('move.counter', { face })
+    return t('move.double', { face })
+  }
 
   useEffect(() => {
     initSolver().then(() => setSolverStatus('ready'))
@@ -364,7 +367,7 @@ function App() {
   function handleStickerChange(index: number, nextFace: Face) {
     if (editMode === 'picker') {
       setSelectedFace(state[index] as Face)
-      setEditMessage(`Picked ${state[index]} (${FACE_LABELS[state[index] as Face]}).`)
+      setEditMessage(`Picked ${state[index]} (${faceLabel(state[index] as Face)}).`)
       setFeedback('correct')
       return
     }
@@ -598,12 +601,12 @@ function App() {
   const canRequestSolve = canSolve && !noHintChallengeActive
   const validationOk = validation.ok && reachable
   const validationMessage = !validation.ok
-    ? `Invalid: ${validation.reason}`
+    ? t('validation.invalid', { reason: validation.reason })
     : !reachable
-      ? 'Invalid: color counts are balanced, but this sticker layout is not reachable on a real 3x3.'
+      ? t('validation.unreachable')
       : activeTab === 'scan'
-        ? 'Cube state is valid and ready to solve.'
-        : 'Cube state is valid.'
+        ? t('validation.readyToSolve')
+        : t('validation.valid')
   const replayMoves = moves?.length ? moves : manualMoves
   const currentReplayMove = replayMoves[replayIndex] ?? null
   const solvedPercent = moves?.length
@@ -766,12 +769,14 @@ function App() {
           <h1>RubikSolver</h1>
           <span className={`status-pill status-${solverStatus}`}>
             <span />
-            Solver: {solverStatus === 'ready' ? 'ready' : 'initializing'}
+            {t('app.solverStatus', {
+              status: solverStatus === 'ready' ? t('app.status.ready') : t('app.status.initializing'),
+            })}
           </span>
         </div>
 
-        <nav className="workspace-tabs" aria-label="Workspace">
-          {PRODUCT_TABS.map(({ id, label }) => (
+        <nav className="workspace-tabs" aria-label={t('app.workspace')}>
+          {PRODUCT_TABS.map(({ id, labelKey }) => (
             <button
               key={id}
               className={activeTab === id ? 'active' : ''}
@@ -780,17 +785,17 @@ function App() {
               <span className={`tab-icon tab-icon-${id}`} aria-hidden="true">
                 <span />
               </span>
-              {label}
+              {t(labelKey)}
             </button>
           ))}
         </nav>
 
-        <div className="header-actions" aria-label="Utility actions">
-          <button onClick={() => setUtilityPanel('help')} title="Help">?</button>
-          <button onClick={() => setUtilityPanel('settings')} title="Settings">⚙</button>
+        <div className="header-actions" aria-label={t('app.utilities')}>
+          <button onClick={() => setUtilityPanel('help')} title={t('settings.help')}>?</button>
+          <button onClick={() => setUtilityPanel('settings')} title={t('settings.settings')}>⚙</button>
           <button
             onClick={() => setThemePreference((theme) => (theme === 'light' ? 'focus' : 'light'))}
-            title="Theme"
+            title={t('settings.theme')}
           >
             {themePreference === 'light' ? '◐' : '☀'}
           </button>
@@ -800,26 +805,39 @@ function App() {
       {utilityPanel && (
         <section className="utility-popover panel" role="dialog" aria-label={utilityPanel}>
           <div className="card-title-row">
-            <h2>{utilityPanel === 'help' ? 'Help Center' : 'Settings'}</h2>
-            <button onClick={() => setUtilityPanel(null)}>Close</button>
+            <h2>{utilityPanel === 'help' ? t('utility.helpTitle') : t('utility.settingsTitle')}</h2>
+            <button onClick={() => setUtilityPanel(null)}>{t('utility.close')}</button>
           </div>
           {utilityPanel === 'help' ? (
             <div className="help-grid">
-              <p>Set Cube: use Random Scramble, import a net image, or correct stickers manually.</p>
-              <p>Paint swaps colors only when the resulting 3x3 is still physically reachable.</p>
-              <p>Picker samples a sticker color; Fill is disabled because it usually creates impossible cubes.</p>
-              <p>Solve: generate moves, step forward/back, or autoplay the solution.</p>
-              <button onClick={handleShare}>Copy Share Link</button>
+              <p>{t('utility.help.1')}</p>
+              <p>{t('utility.help.2')}</p>
+              <p>{t('utility.help.3')}</p>
+              <p>{t('utility.help.4')}</p>
+              <button onClick={handleShare}>{t('utility.copyShareLink')}</button>
             </div>
           ) : (
             <div className="settings-grid">
+              <label>
+                {t('settings.language')}
+                <select
+                  value={language}
+                  onChange={(event) => setLanguage(event.target.value as typeof language)}
+                >
+                  {LANGUAGE_OPTIONS.map((option) => (
+                    <option key={option.code} value={option.code}>
+                      {option.nativeName}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label>
                 <input
                   type="checkbox"
                   checked={showNotation}
                   onChange={(event) => setShowNotation(event.target.checked)}
                 />
-                Show notation legend
+                {t('settings.showNotation')}
               </label>
               <label>
                 <input
@@ -827,7 +845,7 @@ function App() {
                   checked={reducedMotion}
                   onChange={(event) => setReducedMotion(event.target.checked)}
                 />
-                Reduce motion cues
+                {t('settings.reduceMotion')}
               </label>
               <div className="segmented-row">
                 {USER_LEVELS.map((level) => (
@@ -835,9 +853,9 @@ function App() {
                     key={level.id}
                     className={userLevel === level.id ? 'active' : ''}
                     onClick={() => setUserLevel(level.id)}
-                    title={level.description}
+                    title={t(level.descriptionKey)}
                   >
-                    {level.label}
+                    {t(level.labelKey)}
                   </button>
                 ))}
               </div>
@@ -849,7 +867,7 @@ function App() {
       {(shareFeedback || parseError || solveError) && (
         <section className="notice-strip">
           {shareFeedback && <p className="share-feedback">{shareFeedback}</p>}
-          {parseError && <p className="error">Image parse error: {parseError}</p>}
+          {parseError && <p className="error">{t('notice.imageParseError', { message: parseError })}</p>}
           {solveError && <p className="error">{solveError.message}</p>}
         </section>
       )}
@@ -886,14 +904,14 @@ function App() {
             <div className="panel-heading">
               <span className="step-badge">1</span>
               <div>
-                <h2>Set Cube</h2>
-                <p>Start with a legal scramble, image import, or camera capture.</p>
+                <h2>{t('scan.heading')}</h2>
+                <p>{t('scan.description')}</p>
               </div>
             </div>
             <div className="setup-actions">
-              <button className="primary" onClick={handleRandomScramble}>Random Scramble</button>
+              <button className="primary" onClick={handleRandomScramble}>{t('scan.randomScramble')}</button>
               <label className="file-button">
-                Import Image
+                {t('scan.importImage')}
                 <input
                   className="visually-hidden"
                   type="file"
@@ -901,17 +919,17 @@ function App() {
                   onChange={handleImageImport}
                 />
               </label>
-              <button onClick={() => setShowScanner(true)}>Use Camera (AR)</button>
-              <button onClick={handleResetScan}>Reset</button>
+              <button onClick={() => setShowScanner(true)}>{t('scan.useCamera')}</button>
+              <button onClick={handleResetScan}>{t('scan.reset')}</button>
             </div>
             <div className="capture-progress">
-              <strong>Paint color</strong>
-              <span>{selectedFace} · {FACE_LABELS[selectedFace]}</span>
+              <strong>{t('scan.paintColor')}</strong>
+              <span>{selectedFace} · {faceLabel(selectedFace)}</span>
               <span>{validationMessage}</span>
             </div>
             <div className="tips-card compact">
-              <strong>{USER_LEVELS.find((level) => level.id === userLevel)?.label} path</strong>
-              <p>{USER_LEVELS.find((level) => level.id === userLevel)?.description}</p>
+              <strong>{t('scan.path', { level: userLevelCopy ? t(userLevelCopy.labelKey) : '' })}</strong>
+              <p>{userLevelCopy ? t(userLevelCopy.descriptionKey) : ''}</p>
             </div>
           </>
         </aside>
@@ -925,31 +943,31 @@ function App() {
                 <div>
                   <h2>
                     {activeTab === 'solve'
-                      ? 'Solve Coach'
+                      ? t('stage.solveCoach')
                       : activeTab === 'steps'
-                        ? 'Operation Guide'
+                        ? t('stage.operationGuide')
                         : showStepMode
-                          ? 'Follow Solution'
-                          : 'Edit Net'}
+                          ? t('stage.followSolution')
+                          : t('stage.editNet')}
                   </h2>
                   <p>
                     {activeTab === 'solve'
-                      ? 'Follow the algorithm, rotate manually, or auto-play the next move.'
+                      ? t('stage.solveDescription')
                       : activeTab === 'steps'
-                        ? 'Use the shortest path through the app without extra drills.'
+                        ? t('stage.stepsDescription')
                         : showStepMode
-                      ? 'Apply each highlighted move in order.'
+                      ? t('stage.followDescription')
                       : editMode === 'picker'
-                        ? 'Click a sticker to sample its color.'
-                        : 'Click a sticker to swap in the selected color when the result stays legal.'}
+                        ? t('stage.pickerDescription')
+                        : t('stage.paintDescription')}
                   </p>
                 </div>
               </div>
             </div>
             {activeTab !== 'steps' && (
               <div className="tool-buttons">
-                <button onClick={handleRotateView}>Rotate View</button>
-                <button onClick={handleShare}>Share</button>
+                <button onClick={handleRotateView}>{t('stage.rotateView')}</button>
+                <button onClick={handleShare}>{t('stage.share')}</button>
               </div>
             )}
           </div>
@@ -963,27 +981,29 @@ function App() {
                 />
               </div>
               <div className="coach-card">
-                <strong>{currentReplayMove ? `Next move: ${currentReplayMove}` : 'Ready to solve'}</strong>
+                <strong>
+                  {currentReplayMove ? t('coach.nextMove', { move: currentReplayMove }) : t('coach.ready')}
+                </strong>
                 <p className="status-message">
                   {solveMode === 'tight'
-                    ? `Showing tightest solve (${moves?.length} moves).`
+                    ? t('coach.tight', { count: moves?.length ?? 0 })
                     : noHintChallengeActive
-                    ? 'No Hint challenge is active. Use manual controls and your own recall.'
+                    ? t('coach.noHintActive')
                     : upcomingMove
-                    ? describeMove(upcomingMove)
+                    ? describeMoveText(upcomingMove)
                     : moves?.length
-                      ? 'All generated moves have been applied.'
-                      : 'Use Solve to generate an algorithm or practice with manual controls.'}
+                      ? t('coach.allApplied')
+                      : t('coach.useSolve')}
                 </p>
                 <div className="coach-stats">
-                  <span>{solvedPercent}% progress</span>
-                  <span>{manualMoves.length} manual moves</span>
-                  <span>{solveElapsedSeconds}s timer</span>
+                  <span>{t('coach.progress', { percent: solvedPercent })}</span>
+                  <span>{t('coach.manualMoves', { count: manualMoves.length })}</span>
+                  <span>{t('coach.timer', { seconds: solveElapsedSeconds })}</span>
                 </div>
-                <section className="operation-controls-panel" aria-label="Operation Controls">
+                <section className="operation-controls-panel" aria-label={t('controls.operation')}>
                   <div className="operation-title-row">
-                    <h2>Operation Controls</h2>
-                    <span>{manualMoves.length} moves</span>
+                    <h2>{t('controls.operation')}</h2>
+                    <span>{t('controls.moves', { count: manualMoves.length })}</span>
                   </div>
                   <div className="manual-controls">
                     {FACES.map((face) => (
@@ -993,17 +1013,17 @@ function App() {
                     ))}
                   </div>
                 <div className="operation-meta">
-                  <span>Timer {solveElapsedSeconds}s</span>
-                  <span>Progress {solvedPercent}%</span>
+                  <span>{t('controls.timer', { seconds: solveElapsedSeconds })}</span>
+                  <span>{t('controls.progress', { percent: solvedPercent })}</span>
                   {challengeStartedAt && (
                     <span>
                       {challengeMode}
-                      {noHintChallengeActive ? ' no hints' : ''}
+                      {noHintChallengeActive ? ` ${t('controls.noHints')}` : ''}
                     </span>
                   )}
                 </div>
                 {practiceMessage && <p className="practice-hint" style={{ color: 'var(--blue-deep)', fontWeight: 'bold' }}>{practiceMessage}</p>}
-                {feedback && <p className={`feedback ${feedback}`}>Status: {feedback}</p>}
+                {feedback && <p className={`feedback ${feedback}`}>{t('controls.status', { status: feedback })}</p>}
               </section>
             </div>
           </div>
@@ -1036,14 +1056,18 @@ function App() {
                         className={selectedFace === face ? 'active' : ''}
                         style={{ '--face-color': FACE_COLORS[face] } as CSSProperties}
                         onClick={() => setSelectedFace(face)}
-                        title={FACE_LABELS[face]}
-                        aria-label={`Select ${face} ${FACE_LABELS[face]}`}
+                        title={faceLabel(face)}
+                        aria-label={`Select ${face} ${faceLabel(face)}`}
                       />
                     ))}
                   </div>
                   <p className="edit-status">
-                    Mode: {editMode}. Selected {selectedFace} ({FACE_LABELS[selectedFace]}).
-                    {editMessage ? ` ${editMessage}` : ''}
+                    {t('edit.modeStatus', {
+                      mode: t(`mode.${editMode}`),
+                      face: selectedFace,
+                      label: faceLabel(selectedFace),
+                      message: editMessage ? ` ${editMessage}` : '',
+                    })}
                   </p>
 
                   <div className="mode-row">
@@ -1055,14 +1079,14 @@ function App() {
                         onClick={() => setEditMode(mode)}
                         title={
                           mode === 'fill'
-                            ? 'Disabled: full-face paint usually creates an impossible cube.'
+                            ? t('edit.fillTitle')
                             : undefined
                         }
                       >
-                        {mode === 'fill' ? 'Fill disabled' : mode[0].toUpperCase() + mode.slice(1)}
+                        {mode === 'fill' ? t('edit.fillDisabled') : t(`mode.${mode}`)}
                       </button>
                     ))}
-                    <button onClick={handleResetScan}>Clear</button>
+                    <button onClick={handleResetScan}>{t('edit.clear')}</button>
                   </div>
                   <HowToPlay className="how-to-inline" />
                 </>
@@ -1091,8 +1115,8 @@ function App() {
             <div className="panel-heading compact">
               <span className="step-badge">3</span>
               <div>
-                <h2>3D Preview</h2>
-                <p>Drag to inspect the cube state.</p>
+                <h2>{t('preview.heading')}</h2>
+                <p>{t('preview.description')}</p>
               </div>
             </div>
             <div className="cube-3d">
@@ -1102,10 +1126,10 @@ function App() {
           )}
 
           <section className={`validation-card ${validationOk ? 'valid' : 'invalid'}`}>
-            <strong>Validation</strong>
+            <strong>{t('validation.heading')}</strong>
             <p>{validationMessage}</p>
             {hasRepairSuggestion && (
-              <p className="repair-hint">Tap any incorrect sticker on the net to change its color.</p>
+              <p className="repair-hint">{t('validation.repairHint')}</p>
             )}
           </section>
 
@@ -1119,13 +1143,13 @@ function App() {
                   !validation.ok
                     ? validation.reason
                     : !reachable
-                      ? 'This layout is not reachable on a real 3x3.'
+                      ? t('solve.unreachableTitle')
                     : noHintChallengeActive
-                      ? 'No Hint challenge hides generated algorithms.'
-                      : 'Fast Kociemba solve'
+                      ? t('solve.noHintTitle')
+                      : t('solve.fastTitle')
                 }
               >
-                {solveBusy === 'fast' ? 'Solving...' : 'Solve'}
+                {solveBusy === 'fast' ? t('solve.solving') : t('solve.solve')}
               </button>
               {userLevel !== 'newcomer' && (
                 <>
@@ -1135,22 +1159,25 @@ function App() {
                     onClick={handleSolveTight}
                     title={
                       !reachable
-                          ? 'This layout is not reachable on a real 3x3.'
+                          ? t('solve.unreachableTitle')
                         : noHintChallengeActive
-                        ? 'No Hint challenge hides generated algorithms.'
-                        : `Iterates Kociemba for up to ${TIGHT_DEADLINE_MS / 1000}s.`
+                        ? t('solve.noHintTitle')
+                        : t('solve.tightTitle', { seconds: TIGHT_DEADLINE_MS / 1000 })
                     }
                   >
-                    {solveBusy === 'tight' ? 'Tightening...' : 'Solve (Tightest)'}
+                    {solveBusy === 'tight' ? t('solve.tightening') : t('solve.tightest')}
                   </button>
                   {solveBusy === 'tight' && tightInfo && (
                     <span className="tight-progress">
-                      baseline {tightInfo.baseline}, best {tightInfo.current}
+                      {t('solve.tightProgress', {
+                        baseline: tightInfo.baseline,
+                        current: tightInfo.current,
+                      })}
                     </span>
                   )}
                   {solveBusy === 'tight' && (
                     <button className="cancel" onClick={handleCancelTight}>
-                      Cancel
+                      {t('solve.cancel')}
                     </button>
                   )}
                 </>
@@ -1161,8 +1188,8 @@ function App() {
           {moves && moves.length > 0 && !noHintChallengeActive && (
             <section className="algorithm-card panel">
               <div className="card-title-row">
-                <h2>Current Algorithm</h2>
-                <button onClick={handleShare}>Copy</button>
+                <h2>{t('algorithm.heading')}</h2>
+                <button onClick={handleShare}>{t('algorithm.copy')}</button>
               </div>
               <div className="compact-moves">
                 {moves.slice(0, 10).map((move, index) => (
@@ -1172,23 +1199,26 @@ function App() {
                 ))}
               </div>
               <p>
-                Step {Math.min(stepIndex + 1, moves.length)} / {moves.length}
+                {t('algorithm.step', {
+                  current: Math.min(stepIndex + 1, moves.length),
+                  total: moves.length,
+                })}
               </p>
             </section>
           )}
 
           {noHintChallengeActive ? (
             <section className="learn-card panel muted-card">
-              <h2>No Hint Mode</h2>
-              <p>Formula hints are hidden until the challenge is completed.</p>
+              <h2>{t('learn.noHintMode')}</h2>
+              <p>{t('learn.noHintDescription')}</p>
             </section>
           ) : (
             <section className="learn-card panel">
-              <h2>Learning Notes</h2>
+              <h2>{t('learn.notes')}</h2>
               <ul>
-                <li>Keep solved areas steady while applying the current algorithm.</li>
-                <li>Watch the highlighted face before moving to the next step.</li>
-                <li>Use the tight solve when you want a shorter sequence.</li>
+                <li>{t('learn.note.1')}</li>
+                <li>{t('learn.note.2')}</li>
+                <li>{t('learn.note.3')}</li>
               </ul>
             </section>
           )}
@@ -1201,16 +1231,22 @@ function App() {
         {showNotation && <Notation />}
         <HowToPlay className="how-to-footer" />
         {moves && moves.length === 0 && (
-          <p className="already-solved">The cube is already solved. No moves needed.</p>
+          <p className="already-solved">{t('footer.alreadySolved')}</p>
         )}
         {moves && moves.length > 0 && solveMode === 'tight' && tightInfo && tightInfo.baseline > tightInfo.current && (
           <p className="tight-banner">
-            Found a {tightInfo.current}-move solution. Saved {tightInfo.baseline - tightInfo.current} moves.
+            {t('footer.tightBanner', {
+              current: tightInfo.current,
+              saved: tightInfo.baseline - tightInfo.current,
+            })}
           </p>
         )}
         {savedTotals.tightCount > 0 && (
           <p className="saved-counter">
-            Lifetime: {savedTotals.movesSaved} moves saved across {savedTotals.tightCount} tight solves.
+            {t('footer.savedCounter', {
+              saved: savedTotals.movesSaved,
+              count: savedTotals.tightCount,
+            })}
           </p>
         )}
       </footer>
@@ -1219,13 +1255,14 @@ function App() {
 }
 
 function HowToPlay({ className = '' }: { className?: string }) {
+  const { t } = useI18n()
   return (
     <section className={`how-to panel ${className}`.trim()}>
-      <h2>How to Play</h2>
+      <h2>{t('how.heading')}</h2>
       <ol>
-        <li>Use Random Scramble, import a full net, or correct stickers.</li>
-        <li>Verify colors on the net and preview.</li>
-        <li>Click Solve to generate the solution.</li>
+        <li>{t('how.step.1')}</li>
+        <li>{t('how.step.2')}</li>
+        <li>{t('how.step.3')}</li>
       </ol>
     </section>
   )
@@ -1238,31 +1275,32 @@ function OperationManual({
   onSetCube: () => void
   onSolve: () => void
 }) {
+  const { t } = useI18n()
   return (
     <div className="guide-content">
       <div className="guide-steps">
       <article className="guide-card primary-guide">
-        <h3>1. Create a cube</h3>
-        <p>Use Random Scramble for a legal state, or import/capture a full net image.</p>
-        <button onClick={onSetCube}>Open Set Cube</button>
+        <h3>{t('guide.createTitle')}</h3>
+        <p>{t('guide.createBody')}</p>
+        <button onClick={onSetCube}>{t('guide.openSetCube')}</button>
       </article>
       <article className="guide-card">
-        <h3>2. Correct stickers</h3>
-        <p>Pick a color, then tap a sticker. Paint swaps colors and blocks impossible cubes.</p>
+        <h3>{t('guide.correctTitle')}</h3>
+        <p>{t('guide.correctBody')}</p>
       </article>
       <article className="guide-card">
-        <h3>3. Use Picker</h3>
-        <p>Use Picker to sample a sticker color before editing nearby stickers.</p>
+        <h3>{t('guide.pickerTitle')}</h3>
+        <p>{t('guide.pickerBody')}</p>
       </article>
       <article className="guide-card primary-guide">
-        <h3>4. Solve and replay</h3>
-        <p>Click Solve, then use Prev, Next, or Play while following the highlighted move.</p>
-        <button onClick={onSolve}>Open Solve</button>
+        <h3>{t('guide.solveTitle')}</h3>
+        <p>{t('guide.solveBody')}</p>
+        <button onClick={onSolve}>{t('guide.openSolve')}</button>
       </article>
       </div>
       <aside className="guide-note">
-        <strong>3x3 only</strong>
-        <p>This guide covers the complete 3x3 workflow: set the cube, verify it, solve it, then follow moves.</p>
+        <strong>{t('guide.only3x3')}</strong>
+        <p>{t('guide.only3x3Body')}</p>
       </aside>
     </div>
   )
@@ -1581,13 +1619,23 @@ function Solution({
   playSpeed: PlaySpeed
   setPlaySpeed: (s: PlaySpeed) => void
 }) {
+  const { t } = useI18n()
   const completed = stepIndex >= moves.length
   const upcoming = !completed ? parseMove(moves[stepIndex]) : null
   const speeds: PlaySpeed[] = ['slow', 'normal', 'fast']
+  const describeMoveText = (move: ParsedMove) => {
+    const face = t(`face.name.${move.face}`)
+    if (move.turns === 1) return t('move.clockwise', { face })
+    if (move.turns === -1) return t('move.counter', { face })
+    return t('move.double', { face })
+  }
   return (
     <section className="solution">
       <h2>
-        Solution: {moves.length} {moves.length === 1 ? 'move' : 'moves'}
+        {t('solution.heading', {
+          count: moves.length,
+          movesLabel: moves.length === 1 ? t('solution.moveSingular') : t('solution.movePlural'),
+        })}
       </h2>
       <p className="move-list">
         {moves.map((m, i) => {
@@ -1609,7 +1657,7 @@ function Solution({
           onClick={() => setStepIndex(Math.max(0, stepIndex - 1))}
           disabled={stepIndex === 0}
         >
-          ← Prev
+          ← {t('solution.prev')}
         </button>
         <button
           className="play-toggle"
@@ -1617,15 +1665,15 @@ function Solution({
           disabled={completed}
           aria-pressed={autoPlay}
         >
-          {autoPlay ? '⏸ Pause' : '▶ Play'}
+          {autoPlay ? `⏸ ${t('solution.pause')}` : `▶ ${t('solution.play')}`}
         </button>
         <span className="step-status">
           {completed ? (
-            <>Solved! All {moves.length} moves applied.</>
+            <>{t('solution.solved', { count: moves.length })}</>
           ) : (
             <>
-              Move {stepIndex + 1} of {moves.length}
-              {upcoming && <span className="step-detail"> — {describeMove(upcoming)}</span>}
+              {t('solution.moveOf', { current: stepIndex + 1, total: moves.length })}
+              {upcoming && <span className="step-detail"> — {describeMoveText(upcoming)}</span>}
             </>
           )}
         </span>
@@ -1633,41 +1681,42 @@ function Solution({
           onClick={() => setStepIndex(Math.min(moves.length, stepIndex + 1))}
           disabled={stepIndex >= moves.length}
         >
-          Next →
+          {t('solution.next')} →
         </button>
       </div>
       <div className="speed-controls">
-        <span className="speed-label">Speed:</span>
+        <span className="speed-label">{t('solution.speed')}</span>
         {speeds.map((s) => (
           <button
             key={s}
             className={`speed ${s === playSpeed ? 'active' : ''}`}
             onClick={() => setPlaySpeed(s)}
           >
-            {s}
+            {t(`solution.speed.${s}`)}
           </button>
         ))}
       </div>
-      <p className="step-hint">Tip: ← / → to step, space to play/pause.</p>
+      <p className="step-hint">{t('solution.tip')}</p>
     </section>
   )
 }
 
 function Notation() {
+  const { t } = useI18n()
   return (
     <details className="notation">
-      <summary>Notation legend</summary>
+      <summary>{t('notation.summary')}</summary>
       <ul>
         <li>
           <code>U</code>, <code>D</code>, <code>L</code>, <code>R</code>, <code>F</code>,
-          <code>B</code> — Up, Down, Left, Right, Front, Back face
+          <code>B</code> — {t('notation.faces')}
         </li>
-        <li>Bare letter = 90° clockwise (looking at that face from outside the cube)</li>
+        <li>{t('notation.clockwise')}</li>
         <li>
-          <code>'</code> suffix = 90° counter-clockwise (e.g. <code>R'</code>)
+          <code>'</code> {t('notation.counter').replace("' ", '')}
         </li>
         <li>
-          <code>2</code> suffix = 180° (e.g. <code>F2</code>)
+          <code>2</code> {t('notation.double').replace('2 ', '')}
         </li>
       </ul>
     </details>
