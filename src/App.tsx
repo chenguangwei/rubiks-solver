@@ -162,11 +162,6 @@ function countFaces(input: string): Record<Face, number> {
   return counts
 }
 
-function repairColorCounts(input: string): string {
-  // Not used anymore as we want users to manually fix colors.
-  return input
-}
-
 function readInitialState(): string {
   if (typeof window === 'undefined') return SOLVED_STATE
   return decodeStateFromHash(window.location.hash) ?? SOLVED_STATE
@@ -177,7 +172,6 @@ function App() {
   const [solverStatus, setSolverStatus] = useState<SolverStatus>(
     isSolverReady() ? 'ready' : 'initializing',
   )
-  const [parseError, setParseError] = useState<string | null>(null)
   const [moves, setMoves] = useState<string[] | null>(null)
   const [solveMode, setSolveMode] = useState<SolveMode | null>(null)
   const [tightInfo, setTightInfo] = useState<TightInfo | null>(null)
@@ -777,10 +771,9 @@ function App() {
         </section>
       )}
 
-      {(shareFeedback || parseError || solveError) && (
+      {(shareFeedback || solveError) && (
         <section className="notice-strip">
           {shareFeedback && <p className="share-feedback">{shareFeedback}</p>}
-          {parseError && <p className="error">Image parse error: {parseError}</p>}
           {solveError && <p className="error">{solveError.message}</p>}
         </section>
       )}
