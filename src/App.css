@@ -440,7 +440,8 @@ button:disabled {
 .algorithm-card,
 .learn-card,
 .how-to,
-.notation {
+.notation,
+.seo-faq {
   padding: 22px;
 }
 
@@ -455,7 +456,8 @@ button:disabled {
 .panel-heading h2,
 .algorithm-card h2,
 .learn-card h2,
-.how-to h2 {
+.how-to h2,
+.seo-faq h2 {
   margin: 0;
   font-size: 1.05rem;
   line-height: 1.2;
@@ -1222,7 +1224,8 @@ button.speed {
   display: block;
 }
 
-.notation summary {
+.notation summary,
+.seo-faq summary {
   cursor: pointer;
   font-weight: 900;
 }
@@ -1232,6 +1235,32 @@ button.speed {
   border-radius: 5px;
   background: #e9f0fb;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.seo-faq {
+  display: block;
+}
+
+.seo-faq[open] {
+  display: grid;
+  gap: 16px;
+}
+
+.faq-list {
+  display: grid;
+  gap: 14px;
+}
+
+.faq-list article {
+  display: grid;
+  gap: 6px;
+}
+
+.faq-list p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 600;
+  line-height: 1.55;
 }
 
 .tight-banner,
@@ -1268,6 +1297,10 @@ button.speed {
 
   .footer-grid .how-to {
     grid-column: 2;
+  }
+
+  .footer-grid .seo-faq {
+    grid-column: 3;
   }
 
   .how-to-inline {

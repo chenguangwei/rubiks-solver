@@ -1232,6 +1232,7 @@ function App() {
       <footer className="footer-grid">
         {showNotation && <Notation />}
         <HowToPlay className="how-to-footer" />
+        <Faq />
         {moves && moves.length === 0 && (
           <p className="already-solved">{t('footer.alreadySolved')}</p>
         )}
@@ -1721,6 +1722,29 @@ function Notation() {
           <code>2</code> {t('notation.double').replace('2 ', '')}
         </li>
       </ul>
+    </details>
+  )
+}
+
+function Faq() {
+  const { t } = useI18n()
+  return (
+    <details className="seo-faq panel">
+      <summary>{t('faq.summary')}</summary>
+      <div className="faq-list">
+        <article>
+          <h2>{t('faq.solve.question')}</h2>
+          <p>{t('faq.solve.answer')}</p>
+        </article>
+        <article>
+          <h2>{t('faq.impossible.question')}</h2>
+          <p>{t('faq.impossible.answer')}</p>
+        </article>
+        <article>
+          <h2>{t('faq.install.question')}</h2>
+          <p>{t('faq.install.answer')}</p>
+        </article>
+      </div>
     </details>
   )
 }
