@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { ChangeEvent, CSSProperties } from 'react'
 import { Cube3D } from './Cube3D'
 import { CubeNet } from './CubeNet'
 import { CENTER_INDICES, FACE_COLORS, FACES, SOLVED_STATE, validateState } from './cube'
 import type { Face } from './cube'
+import { loadImageToBuffer } from './imageLoader'
 import { describeMove, parseMove, stickerIndicesForFace } from './moves'
+import { parseNet } from './parser'
 import { decodeStateFromHash, shareUrl } from './share'
 import {
   applyMoves,
@@ -154,6 +156,18 @@ function writeStringArray(key: string, value: string[]) {
   getLocalStorage()?.setItem(key, JSON.stringify(value.slice(0, 12)))
 }
 
+function nowMs(): number {
+  return Date.now()
+}
+
+function formatDate(ms: number): string {
+  return new Date(ms).toLocaleDateString()
+}
+
+function formatTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString()
+}
+
 function countFaces(input: string): Record<Face, number> {
   const counts = Object.fromEntries(FACES.map((face) => [face, 0])) as Record<Face, number>
   for (const ch of input) {
@@ -172,6 +186,7 @@ function App() {
   const [solverStatus, setSolverStatus] = useState<SolverStatus>(
     isSolverReady() ? 'ready' : 'initializing',
   )
+  const [parseError, setParseError] = useState<string | null>(null)
   const [moves, setMoves] = useState<string[] | null>(null)
   const [solveMode, setSolveMode] = useState<SolveMode | null>(null)
   const [tightInfo, setTightInfo] = useState<TightInfo | null>(null)
@@ -200,6 +215,7 @@ function App() {
   const [practiceCaseId, setPracticeCaseId] = useState<string | null>(null)
   const [solveStartedAt, setSolveStartedAt] = useState<number | null>(null)
   const [solveFinishedAt, setSolveFinishedAt] = useState<number | null>(null)
+  const [currentTime, setCurrentTime] = useState(0)
   const [productHistory, setProductHistory] = useState(() => readStringArray(LS_PRODUCT_HISTORY))
   const [challengeRecords, setChallengeRecords] = useState(() => readStringArray(LS_PRODUCT_RECORDS))
   const [challengePb, setChallengePb] = useState(() => readNumber(LS_PRODUCT_PB) || 48)
@@ -227,6 +243,14 @@ function App() {
     solveBusyRef.current = solveBusy
   }, [solveBusy])
 
+  const timerActive =
+    (solveStartedAt !== null && solveFinishedAt === null) || challengeStartedAt !== null
+  useEffect(() => {
+    if (!timerActive) return
+    const id = window.setInterval(() => setCurrentTime(nowMs()), 1000)
+    return () => window.clearInterval(id)
+  }, [timerActive])
+
   function setStateAndClearMoves(next: string) {
     // If a solve is in flight when the cube state changes (random scramble,
     // reset, sticker edit, paste, drop), cancel the pending request.
@@ -242,6 +266,7 @@ function App() {
     setSolveMode(null)
     setTightInfo(null)
     setSolveError(null)
+    setParseError(null)
     setStepIndex(0)
     setAutoPlay(false)
     setActiveTab('scan')
@@ -383,7 +408,9 @@ function App() {
       setMoves(result)
       setSolveMode('fast')
       setActiveTab('solve')
-      setSolveStartedAt(Date.now())
+      const startedAt = nowMs()
+      setCurrentTime(startedAt)
+      setSolveStartedAt(startedAt)
       setSolveFinishedAt(null)
       setFeedback('correct')
     } catch (err) {
@@ -397,6 +424,49 @@ function App() {
 
   async function handleSolveFast() {
     await solveFastForState(state)
+  }
+
+  async function handleImageImport(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+    if (!file) return
+
+    setParseError(null)
+    try {
+      const image = await loadImageToBuffer(file)
+      const result = parseNet(image)
+      if (!result.ok) {
+        setParseError(result.reason)
+        setFeedback('error')
+        setEditMessage(`Image import failed: ${result.reason}.`)
+        return
+      }
+
+      const nextValidation = validateState(result.state)
+      if (!nextValidation.ok) {
+        setParseError(nextValidation.reason)
+        setFeedback('error')
+        setEditMessage(`Image import failed: ${nextValidation.reason}.`)
+        return
+      }
+      if (!isReachableState(result.state)) {
+        const reason = 'Imported stickers do not form a physically reachable 3x3 cube.'
+        setParseError(reason)
+        setFeedback('error')
+        setEditMessage(`Image import failed: ${reason}`)
+        return
+      }
+
+      setStateAndClearMoves(result.state)
+      setFeedback('correct')
+      setEditMessage('Image imported. Solving automatically.')
+      await solveFastForState(result.state)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setParseError(message)
+      setFeedback('error')
+      setEditMessage(`Image import failed: ${message}.`)
+    }
   }
 
   async function handleSolveTight() {
@@ -453,7 +523,9 @@ function App() {
       setMoves(result)
       setSolveMode('tight')
       setActiveTab('solve')
-      setSolveStartedAt(Date.now())
+      const startedAt = nowMs()
+      setCurrentTime(startedAt)
+      setSolveStartedAt(startedAt)
       setSolveFinishedAt(null)
       setFeedback('correct')
       setTightInfo({ baseline, current: result.length })
@@ -503,8 +575,10 @@ function App() {
     setAutoPlay(false)
     setStepIndex(next)
     if (moves && next >= moves.length && !solveFinishedAt) {
-      setSolveFinishedAt(Date.now())
-      const entry = `${new Date().toLocaleDateString()}: solved in ${moves.length} moves`
+      const finishedAt = nowMs()
+      setCurrentTime(finishedAt)
+      setSolveFinishedAt(finishedAt)
+      const entry = `${formatDate(finishedAt)}: solved in ${moves.length} moves`
       const nextHistory = [entry, ...productHistory].slice(0, 12)
       setProductHistory(nextHistory)
       writeStringArray(LS_PRODUCT_HISTORY, nextHistory)
@@ -540,7 +614,7 @@ function App() {
   const solveElapsedSeconds =
     solveStartedAt === null
       ? 0
-      : Math.max(0, Math.round(((solveFinishedAt ?? Date.now()) - solveStartedAt) / 1000))
+      : Math.max(0, Math.round(((solveFinishedAt ?? currentTime) - solveStartedAt) / 1000))
   function handleRandomScramble() {
     const next = randomState()
     setStateAndClearMoves(next)
@@ -594,10 +668,11 @@ function App() {
     const next = randomState()
     setStateAndClearMoves(next)
     setActiveTab('solve')
-    const startedAt = Date.now()
+    const startedAt = nowMs()
+    setCurrentTime(startedAt)
     setSolveStartedAt(startedAt)
     setChallengeStartedAt(startedAt)
-    const record = `${mode}: started ${new Date(startedAt).toLocaleTimeString()}`
+    const record = `${mode}: started ${formatTime(startedAt)}`
     const nextRecords = [record, ...challengeRecords].slice(0, 12)
     setChallengeRecords(nextRecords)
     writeStringArray(LS_PRODUCT_RECORDS, nextRecords)
@@ -644,7 +719,7 @@ function App() {
 
   function finishChallenge() {
     const elapsed = challengeStartedAt
-      ? Math.max(1, Math.round((Date.now() - challengeStartedAt) / 1000))
+      ? Math.max(1, Math.round((nowMs() - challengeStartedAt) / 1000))
       : challengePb
     const label = `${challengeMode}: ${elapsed}s, ${manualMoves.length || moves?.length || 0} moves`
     const nextRecords = [label, ...challengeRecords].slice(0, 12)
@@ -771,9 +846,10 @@ function App() {
         </section>
       )}
 
-      {(shareFeedback || solveError) && (
+      {(shareFeedback || parseError || solveError) && (
         <section className="notice-strip">
           {shareFeedback && <p className="share-feedback">{shareFeedback}</p>}
+          {parseError && <p className="error">Image parse error: {parseError}</p>}
           {solveError && <p className="error">{solveError.message}</p>}
         </section>
       )}
@@ -816,6 +892,15 @@ function App() {
             </div>
             <div className="setup-actions">
               <button className="primary" onClick={handleRandomScramble}>Random Scramble</button>
+              <label className="file-button">
+                Import Image
+                <input
+                  className="visually-hidden"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageImport}
+                />
+              </label>
               <button onClick={() => setShowScanner(true)}>Use Camera (AR)</button>
               <button onClick={handleResetScan}>Reset</button>
             </div>

@@ -35,7 +35,7 @@ npm run dev
 Local development URL:
 
 ```text
-http://localhost:5173/rubiks-solver/
+http://localhost:5173/
 ```
 
 Other commands:
