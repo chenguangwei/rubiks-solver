@@ -1,5 +1,5 @@
 import Cube from 'cubejs'
-import { canonicalizeOrientation } from './cube'
+import { canonicalizeOrientation, validateState } from './cube'
 
 export type Move = string
 
@@ -161,6 +161,28 @@ export function solvedState(): string {
 
 export function isSolved(state: string): boolean {
   return Cube.fromString(state).isSolved()
+}
+
+export function isReachableState(state: string): boolean {
+  if (!validateState(state).ok) return false
+  try {
+    const canonical = canonicalizeOrientation(state)
+    const cube = Cube.fromString(canonical) as Cube & {
+      co: number[]
+      cp: number[]
+      eo: number[]
+      ep: number[]
+      cornerParity: () => number
+      edgeParity: () => number
+    }
+    if (cube.asString() !== canonical) return false
+    if (new Set(cube.cp).size !== 8 || new Set(cube.ep).size !== 12) return false
+    if (cube.co.reduce((sum, value) => sum + value, 0) % 3 !== 0) return false
+    if (cube.eo.reduce((sum, value) => sum + value, 0) % 2 !== 0) return false
+    return cube.cornerParity() === cube.edgeParity()
+  } catch {
+    return false
+  }
 }
 
 export function randomState(): string {

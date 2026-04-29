@@ -4,6 +4,7 @@ import {
   UnsolvableCubeError,
   applyMoves,
   initSolverCore,
+  isReachableState,
   isSolved,
   randomState,
   solveFastSync,
@@ -85,6 +86,13 @@ describe('solver-core', () => {
     const flipped =
       SOLVED_STATE.slice(0, 7) + 'F' + SOLVED_STATE.slice(8, 19) + 'U' + SOLVED_STATE.slice(20)
     expect(() => solveFastSync(flipped)).toThrowError(UnsolvableCubeError)
+  })
+
+  it('reports whether a balanced sticker layout is physically reachable', () => {
+    const flipped =
+      SOLVED_STATE.slice(0, 7) + 'F' + SOLVED_STATE.slice(8, 19) + 'U' + SOLVED_STATE.slice(20)
+    expect(isReachableState(SOLVED_STATE)).toBe(true)
+    expect(isReachableState(flipped)).toBe(false)
   })
 
   it('solves a scrambled cube with a non-canonical orientation', () => {

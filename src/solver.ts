@@ -2,6 +2,7 @@ import SolverWorker from './solver.worker?worker'
 import {
   UnsolvableCubeError,
   applyMoves,
+  isReachableState,
   isSolved,
   randomState,
   solvedState,
@@ -10,7 +11,7 @@ import type { Move, TightSolveProgress } from './solver-core'
 import type { WorkerInbound, WorkerOutbound } from './solver.worker'
 
 // Re-export sync utilities so consumers can keep importing from './solver'.
-export { UnsolvableCubeError, applyMoves, isSolved, randomState, solvedState }
+export { UnsolvableCubeError, applyMoves, isReachableState, isSolved, randomState, solvedState }
 export type { Move, TightSolveProgress }
 
 let worker: Worker | null = null

@@ -1,6 +1,6 @@
 import { FACE_COLORS, FACES, GRID_COLS, GRID_ROWS, PLACEMENTS } from './cube'
 import type { Face } from './cube'
-import type { KeyboardEvent } from 'react'
+import type { CSSProperties, KeyboardEvent } from 'react'
 
 const STICKER_SIZE = 40
 const STICKER_GAP = 2
@@ -12,6 +12,7 @@ export type CubeNetProps = {
   onChange?: (index: number, nextFace: Face) => void
   highlightIndices?: readonly number[]
   className?: string
+  style?: CSSProperties
 }
 
 export function CubeNet({
@@ -20,6 +21,7 @@ export function CubeNet({
   onChange,
   highlightIndices,
   className,
+  style,
 }: CubeNetProps) {
   const width = GRID_COLS * STICKER_SIZE
   const height = GRID_ROWS * STICKER_SIZE
@@ -45,7 +47,7 @@ export function CubeNet({
       role="img"
       aria-label="Rubik's cube unfolded net"
       className={className}
-      style={{ maxWidth: width, display: 'block' }}
+      style={{ maxWidth: width, display: 'block', ...style }}
     >
       {PLACEMENTS.map((p) => {
         const face = state[p.index] as Face
