@@ -198,7 +198,7 @@ function Scene({ state, highlights }: { state: string, highlights?: readonly num
       }
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [state, rendered, turn])
+  }, [state, rendered, turn, highlights])
 
   function handleAnimationDone() {
     if (!turn) return

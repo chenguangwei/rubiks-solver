@@ -488,6 +488,114 @@ button:disabled {
   gap: 10px;
 }
 
+.primary-cta-grid {
+  margin-top: 22px;
+  display: grid;
+  gap: 12px;
+}
+
+.cta-card {
+  min-height: 92px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  text-align: left;
+  border-radius: 12px;
+  border-width: 2px;
+  border-color: #9fb8df;
+  background: #f8fbff;
+  box-shadow:
+    0 12px 26px rgba(20, 51, 96, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.cta-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow:
+    0 18px 34px rgba(20, 51, 96, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.cta-card:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.cta-icon,
+.cta-affordance {
+  display: grid;
+  place-items: center;
+  font-weight: 950;
+}
+
+.cta-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  font-size: 1.35rem;
+}
+
+.cta-copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.cta-copy span {
+  font-size: 1.1rem;
+  font-weight: 950;
+}
+
+.cta-copy small {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.cta-affordance {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.camera-cta {
+  color: white;
+  border-color: #0752c7;
+  background: linear-gradient(135deg, #1267dc 0%, #073b94 100%);
+}
+
+.camera-cta .cta-icon,
+.camera-cta .cta-affordance {
+  color: white;
+  background: rgba(255, 255, 255, 0.17);
+}
+
+.camera-cta small {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.scramble-cta {
+  color: #063d25;
+  border-color: #0c9f54;
+  background:
+    linear-gradient(135deg, rgba(12, 159, 84, 0.14) 0%, rgba(255, 213, 0, 0.13) 100%),
+    #f7fff9;
+}
+
+.scramble-cta .cta-icon {
+  color: white;
+  background: #0c9f54;
+}
+
+.scramble-cta .cta-affordance {
+  color: #075a32;
+  background: rgba(12, 159, 84, 0.13);
+}
+
 .setup-actions button,
 .setup-actions .file-button {
   width: 100%;
@@ -1089,7 +1197,47 @@ button.cancel {
   align-items: start;
 }
 
-.guide-steps {
+.tutorial-hero {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: end;
+  padding: 20px;
+  border: 1px solid #dbe6f6;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.tutorial-hero h2 {
+  margin: 6px 0 8px;
+  font-size: clamp(1.45rem, 2.2vw, 2rem);
+  line-height: 1.1;
+}
+
+.tutorial-hero p {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.tutorial-kicker,
+.tutorial-step {
+  color: var(--blue-deep);
+  font-size: 0.78rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.tutorial-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.tutorial-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
@@ -1106,6 +1254,30 @@ button.cancel {
 .guide-card.primary-guide {
   border-color: #a9c9fb;
   background: #f2f7ff;
+}
+
+.tutorial-card {
+  min-height: 258px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.mini-face {
+  width: 94px;
+  aspect-ratio: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 6px;
+  border-radius: 10px;
+  background: #172033;
+  box-shadow: 0 12px 20px rgba(16, 24, 40, 0.12);
+}
+
+.mini-face span {
+  border-radius: 4px;
+  background: var(--face-color);
 }
 
 .guide-card h3,
@@ -1125,6 +1297,27 @@ button.cancel {
 .guide-card button {
   margin-top: 16px;
   padding-inline: 16px;
+}
+
+.formula-row {
+  display: grid;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.formula-row code {
+  width: 100%;
+  padding: 9px 10px;
+  overflow-wrap: anywhere;
+  border: 1px solid #dbe6f6;
+  border-radius: 8px;
+  color: #172033;
+  background: white;
+  font-weight: 900;
+}
+
+.guide-note button {
+  margin-top: 16px;
 }
 
 .segmented-row {
@@ -1347,7 +1540,8 @@ button.speed {
     grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
   }
 
-  .guide-content {
+  .guide-content,
+  .tutorial-hero {
     grid-template-columns: 1fr;
   }
 
@@ -1529,9 +1723,21 @@ button.speed {
     padding-top: 14px;
   }
 
-  .guide-steps {
+  .tutorial-grid {
     grid-template-columns: 1fr;
     gap: 10px;
+  }
+
+  .tutorial-hero {
+    padding: 14px;
+  }
+
+  .tutorial-actions {
+    justify-content: stretch;
+  }
+
+  .tutorial-actions button {
+    flex: 1 1 130px;
   }
 
   .guide-card,
@@ -1551,11 +1757,11 @@ button.speed {
   }
 
   .workspace-scan .stage-panel {
-    order: 1;
+    order: 2;
   }
 
   .workspace-scan .capture-panel {
-    order: 2;
+    order: 1;
   }
 
   .workspace-scan .inspector-stack {
@@ -1608,6 +1814,10 @@ button.speed {
 
   .workspace-scan .capture-panel .panel-heading {
     display: none;
+  }
+
+  .workspace-scan .primary-cta-grid {
+    margin-top: 0;
   }
 
   .workspace-scan .setup-actions {
@@ -1897,9 +2107,18 @@ button.speed {
   border-bottom: 1px solid var(--line);
 }
 
+.camera-header p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
 .face-thumbnails {
   display: flex;
   gap: 8px;
+  padding: 12px 16px;
+  overflow-x: auto;
 }
 
 .face-thumb {
@@ -1983,6 +2202,15 @@ button.speed {
 .camera-controls .instruction {
   margin: 0;
   color: var(--ink);
+  font-weight: 850;
+}
+
+.camera-tip {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .camera-actions {

@@ -9,6 +9,7 @@ const appMocks = vi.hoisted(() => ({
   isSolverReady: vi.fn(),
   loadImageToBuffer: vi.fn(),
   parseNet: vi.fn(),
+  parseFace: vi.fn(),
   solve: vi.fn(),
   solveTight: vi.fn(),
   terminateSolver: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock('./imageLoader', () => ({
 
 vi.mock('./parser', () => ({
   parseNet: appMocks.parseNet,
+  parseFace: appMocks.parseFace,
 }))
 
 // jsdom's Worker support is limited. Mock the solver layer so App can mount
@@ -59,9 +61,18 @@ describe('App', () => {
       state: IMPORTED_STATE,
       samples: {},
     })
+    appMocks.parseFace.mockReturnValue(['U', 'U', 'U', 'U', 'U', 'U', 'U', 'U', 'U'])
     appMocks.solve.mockResolvedValue(['R'])
     appMocks.solveTight.mockResolvedValue(['R'])
     appMocks.terminateSolver.mockImplementation(() => {})
+    Object.defineProperty(window.navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue({
+          getTracks: () => [{ stop: vi.fn() }],
+        }),
+      },
+    })
   })
 
   it('renders the title', () => {
@@ -100,11 +111,25 @@ describe('App', () => {
     expect(screen.queryByText(/Solve Flow/i)).not.toBeInTheDocument()
   })
 
+  it('prioritizes photo solve and random scramble as the main setup actions', () => {
+    render(<App />)
+
+    expect(screen.getByRole('heading', { name: /Solve a Real Cube/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Photo Solve/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Random Scramble/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Learn Restore/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Manual Turns/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Photo Solve/i }))
+    expect(screen.getByText(/6-face capture/i)).toBeInTheDocument()
+    expect(screen.getByText(/0 \/ 6 faces captured/i)).toBeInTheDocument()
+  })
+
   it('keeps Set Cube focused on net editing and blocks impossible paint edits', () => {
     const { container } = render(<App />)
 
     expect(screen.queryByRole('button', { name: /Review U/i })).not.toBeInTheDocument()
-    expect(screen.getByText(/Paint color/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Review colors/i).length).toBeGreaterThan(0)
     expect(screen.getAllByRole('button', { name: /^Solve$/i }).at(-1)).not.toBeDisabled()
 
     fireEvent.click(screen.getByRole('button', { name: /Select F Green/i }))
@@ -129,13 +154,15 @@ describe('App', () => {
     expect(within(screen.getByLabelText('Operation Controls')).getByText(/1 moves/i)).toBeInTheDocument()
   })
 
-  it('renders the operation guide instead of the old case library', () => {
+  it('renders the visual beginner tutorial instead of secondary product pages', () => {
     render(<App />)
 
     fireEvent.click(screen.getByRole('button', { name: /Guide/i }))
-    expect(screen.getByText(/Create a cube/i)).toBeInTheDocument()
-    expect(screen.getAllByText(/Correct stickers/i).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/Use Picker/i).length).toBeGreaterThan(0)
+    expect(screen.getByRole('heading', { name: /Learn the solve in four visual stages/i })).toBeInTheDocument()
+    expect(screen.getByText(/White cross/i)).toBeInTheDocument()
+    expect(screen.getByText(/First two layers/i)).toBeInTheDocument()
+    expect(screen.getByText(/Orient the last layer/i)).toBeInTheDocument()
+    expect(screen.getByText(/Permute the last layer/i)).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /Edit Net/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /3D Preview/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/F2L_01/i)).not.toBeInTheDocument()

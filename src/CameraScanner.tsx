@@ -17,6 +17,7 @@ export default function CameraScanner({ onComplete, onCancel }: CameraScannerPro
   const [currentFaceIndex, setCurrentFaceIndex] = useState(0)
 
   const targetFace = FACES[currentFaceIndex]
+  const capturedCount = Object.keys(scannedFaces).length
 
   useEffect(() => {
     let stream: MediaStream | null = null
@@ -94,17 +95,23 @@ export default function CameraScanner({ onComplete, onCancel }: CameraScannerPro
   return (
     <div className="camera-scanner panel">
       <div className="camera-header">
-        <div className="face-thumbnails">
-          {FACES.map((face, idx) => (
-            <div 
-              key={face} 
-              className={`face-thumb ${idx === currentFaceIndex ? 'active' : ''} ${scannedFaces[face] ? 'done' : ''}`}
-            >
-              {face}
-            </div>
-          ))}
+        <div>
+          <strong>{t('camera.title')}</strong>
+          <p>{t('camera.progress', { current: capturedCount, total: FACES.length })}</p>
         </div>
         <button className="close-btn" onClick={onCancel}>✕</button>
+      </div>
+
+      <div className="face-thumbnails" aria-label={t('camera.faces')}>
+        {FACES.map((face, idx) => (
+          <div 
+            key={face} 
+            className={`face-thumb ${idx === currentFaceIndex ? 'active' : ''} ${scannedFaces[face] ? 'done' : ''}`}
+            title={t(`face.name.${face}`)}
+          >
+            {face}
+          </div>
+        ))}
       </div>
 
       <div className="camera-viewport">
@@ -120,6 +127,7 @@ export default function CameraScanner({ onComplete, onCancel }: CameraScannerPro
         <p className="instruction">
           {t('camera.scanInstruction', { face: targetFace })}
         </p>
+        <p className="camera-tip">{t('camera.tip')}</p>
         <div className="camera-actions">
           <button disabled={currentFaceIndex === 0} onClick={handleUndo}>{t('camera.undo')}</button>
           <button className="primary" onClick={handleCapture}>

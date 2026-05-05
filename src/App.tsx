@@ -98,6 +98,37 @@ const LEARNING_CASES = [
   },
 ] as const
 
+const BEGINNER_TUTORIAL = [
+  {
+    id: 'cross',
+    titleKey: 'tutorial.cross.title',
+    bodyKey: 'tutorial.cross.body',
+    formula: "F R U R' U' F'",
+    colors: ['D', 'D', 'D', 'D'] as Face[],
+  },
+  {
+    id: 'f2l',
+    titleKey: 'tutorial.f2l.title',
+    bodyKey: 'tutorial.f2l.body',
+    formula: "U R U' R'",
+    colors: ['F', 'R', 'F', 'R'] as Face[],
+  },
+  {
+    id: 'oll',
+    titleKey: 'tutorial.oll.title',
+    bodyKey: 'tutorial.oll.body',
+    formula: "F R U R' U' F'",
+    colors: ['U', 'U', 'U', 'U'] as Face[],
+  },
+  {
+    id: 'pll',
+    titleKey: 'tutorial.pll.title',
+    bodyKey: 'tutorial.pll.body',
+    formula: "R U R' F' R U R' U' R' F R2 U' R'",
+    colors: ['R', 'B', 'L', 'F'] as Face[],
+  },
+] as const
+
 const LS_PRODUCT_HISTORY = 'rubiks-solver:product-history'
 const LS_PRODUCT_PB = 'rubiks-solver:product-challenge-pb'
 const LS_PRODUCT_RECORDS = 'rubiks-solver:product-challenge-records'
@@ -623,7 +654,7 @@ function App() {
   function handleRandomScramble() {
     const next = randomState()
     setStateAndClearMoves(next)
-    setEditMessage('Random legal scramble loaded. Click Solve or edit stickers.')
+    setEditMessage('Random legal scramble loaded. Click Solve or practice with manual turns.')
   }
 
   function handleResetScan() {
@@ -715,6 +746,29 @@ function App() {
     }
   }
 
+  function handleScannerComplete(nextState: string) {
+    setStateAndClearMoves(nextState)
+    setShowScanner(false)
+    const nextValidation = validateState(nextState)
+    if (!nextValidation.ok) {
+      setActiveTab('scan')
+      setFeedback('repairable')
+      setEditMessage(`Six faces captured. Review the net: ${nextValidation.reason}.`)
+      return
+    }
+    if (!isReachableState(nextState)) {
+      setActiveTab('scan')
+      setFeedback('repairable')
+      setEditMessage('Six faces captured. Review the net: this sticker layout is not reachable on a real 3x3.')
+      return
+    }
+    setEditMessage('Six faces captured and checked. Solving automatically.')
+    setFeedback('correct')
+    if (solverStatus === 'ready' || isSolverReady()) {
+      void solveFastForState(nextState)
+    }
+  }
+
   function recordReplayStep(delta: number) {
     setReplayIndex((index) => {
       if (replayMoves.length === 0) return 0
@@ -743,13 +797,7 @@ function App() {
       {showScanner && (
         <div className="scanner-modal">
           <CameraScanner 
-            onComplete={(nextState) => {
-              setStateAndClearMoves(nextState)
-              setShowScanner(false)
-              if (validateState(nextState).ok && (solverStatus === 'ready' || isSolverReady())) {
-                void solveFastForState(nextState)
-              }
-            }} 
+            onComplete={handleScannerComplete}
             onCancel={() => setShowScanner(false)} 
           />
         </div>
@@ -910,8 +958,25 @@ function App() {
                 <p>{t('scan.description')}</p>
               </div>
             </div>
+            <div className="primary-cta-grid" aria-label={t('scan.primaryActions')}>
+              <button className="cta-card camera-cta" onClick={() => setShowScanner(true)}>
+                <span className="cta-icon" aria-hidden="true">▣</span>
+                <span className="cta-copy">
+                  <span>{t('scan.photoSolve')}</span>
+                  <small>{t('scan.photoSolveBody')}</small>
+                </span>
+                <span className="cta-affordance" aria-hidden="true">›</span>
+              </button>
+              <button className="cta-card scramble-cta" onClick={handleRandomScramble}>
+                <span className="cta-icon" aria-hidden="true">↻</span>
+                <span className="cta-copy">
+                  <span>{t('scan.randomScramble')}</span>
+                  <small>{t('scan.randomBody')}</small>
+                </span>
+                <span className="cta-affordance" aria-hidden="true">›</span>
+              </button>
+            </div>
             <div className="setup-actions">
-              <button className="primary" onClick={handleRandomScramble}>{t('scan.randomScramble')}</button>
               <label className="file-button">
                 {t('scan.importImage')}
                 <input
@@ -921,11 +986,12 @@ function App() {
                   onChange={handleImageImport}
                 />
               </label>
-              <button onClick={() => setShowScanner(true)}>{t('scan.useCamera')}</button>
+              <button onClick={() => setActiveTab('steps')}>{t('scan.learnRestore')}</button>
+              <button onClick={() => setActiveTab('solve')}>{t('scan.manualTurns')}</button>
               <button onClick={handleResetScan}>{t('scan.reset')}</button>
             </div>
             <div className="capture-progress">
-              <strong>{t('scan.paintColor')}</strong>
+              <strong>{t('scan.reviewTitle')}</strong>
               <span>{selectedFace} · {faceLabel(selectedFace)}</span>
               <span>{validationMessage}</span>
             </div>
@@ -941,7 +1007,7 @@ function App() {
           <div className="stage-toolbar">
             <div>
               <div className="panel-heading compact">
-                <span className="step-badge">{activeTab === 'solve' ? '2' : '1'}</span>
+                <span className="step-badge">{activeTab === 'solve' || activeTab === 'scan' ? '2' : '1'}</span>
                 <div>
                   <h2>
                     {activeTab === 'solve'
@@ -1032,6 +1098,8 @@ function App() {
         ) : activeTab === 'steps' ? (
             <section className="guide-panel">
               <OperationManual
+                onPhotoSolve={() => setShowScanner(true)}
+                onRandomScramble={handleRandomScramble}
                 onSetCube={() => setActiveTab('scan')}
                 onSolve={() => setActiveTab('solve')}
               />
@@ -1272,39 +1340,70 @@ function HowToPlay({ className = '' }: { className?: string }) {
 }
 
 function OperationManual({
+  onPhotoSolve,
+  onRandomScramble,
   onSetCube,
   onSolve,
 }: {
+  onPhotoSolve: () => void
+  onRandomScramble: () => void
   onSetCube: () => void
   onSolve: () => void
 }) {
   const { t } = useI18n()
   return (
     <div className="guide-content">
-      <div className="guide-steps">
-      <article className="guide-card primary-guide">
-        <h3>{t('guide.createTitle')}</h3>
-        <p>{t('guide.createBody')}</p>
-        <button onClick={onSetCube}>{t('guide.openSetCube')}</button>
-      </article>
-      <article className="guide-card">
-        <h3>{t('guide.correctTitle')}</h3>
-        <p>{t('guide.correctBody')}</p>
-      </article>
-      <article className="guide-card">
-        <h3>{t('guide.pickerTitle')}</h3>
-        <p>{t('guide.pickerBody')}</p>
-      </article>
-      <article className="guide-card primary-guide">
-        <h3>{t('guide.solveTitle')}</h3>
-        <p>{t('guide.solveBody')}</p>
-        <button onClick={onSolve}>{t('guide.openSolve')}</button>
-      </article>
+      <section className="tutorial-hero">
+        <div>
+          <span className="tutorial-kicker">{t('tutorial.kicker')}</span>
+          <h2>{t('tutorial.heading')}</h2>
+          <p>{t('tutorial.description')}</p>
+        </div>
+        <div className="tutorial-actions">
+          <button className="primary" onClick={onPhotoSolve}>{t('scan.photoSolve')}</button>
+          <button onClick={onRandomScramble}>{t('scan.randomScramble')}</button>
+          <button onClick={onSolve}>{t('scan.manualTurns')}</button>
+        </div>
+      </section>
+
+      <div className="tutorial-grid">
+        {BEGINNER_TUTORIAL.map((item, index) => (
+          <article key={item.id} className="guide-card tutorial-card">
+            <MiniFaceDiagram colors={item.colors} />
+            <span className="tutorial-step">{index + 1}</span>
+            <h3>{t(item.titleKey)}</h3>
+            <p>{t(item.bodyKey)}</p>
+            <div className="formula-row">
+              <strong>{t('tutorial.formula')}</strong>
+              <code>{item.formula}</code>
+            </div>
+          </article>
+        ))}
       </div>
+
       <aside className="guide-note">
         <strong>{t('guide.only3x3')}</strong>
         <p>{t('guide.only3x3Body')}</p>
+        <button onClick={onSetCube}>{t('guide.openSetCube')}</button>
       </aside>
+    </div>
+  )
+}
+
+function MiniFaceDiagram({ colors }: { colors: readonly Face[] }) {
+  const cells = [
+    colors[0], 'U', colors[1],
+    'L', 'U', 'R',
+    colors[2], 'D', colors[3],
+  ] as const
+  return (
+    <div className="mini-face" aria-hidden="true">
+      {cells.map((face, index) => (
+        <span
+          key={`${face}-${index}`}
+          style={{ '--face-color': FACE_COLORS[face] } as CSSProperties}
+        />
+      ))}
     </div>
   )
 }
