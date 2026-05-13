@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
 export type Language = 'en' | 'zh' | 'ja' | 'ko' | 'fr'
@@ -13,6 +13,7 @@ export const LANGUAGE_OPTIONS: readonly { code: Language; label: string; nativeN
 ]
 
 const LS_LANGUAGE = 'rubiks-solver:language'
+const LS_LANGUAGE_SOURCE = 'rubiks-solver:language-source'
 
 const HTML_LANG: Record<Language, string> = {
   en: 'en',
@@ -230,6 +231,8 @@ const en: Messages = {
   'camera.undo': 'Undo',
   'camera.capture': 'Capture {face}',
   'camera.close': 'Close',
+  'camera.loading': 'Preparing camera...',
+  'camera.frameNotReady': 'Camera frame is not ready yet. Wait for the live preview, then capture again.',
   'cubeNet.label': "Rubik's cube unfolded net",
   'cubeNet.stickerLabel': '{position}: {face}',
 }
@@ -440,6 +443,8 @@ const zh: Messages = {
   'camera.undo': '撤销',
   'camera.capture': '拍摄 {face}',
   'camera.close': '关闭',
+  'camera.loading': '相机准备中...',
+  'camera.frameNotReady': '相机画面尚未准备好。请等待实时预览出现后再拍摄。',
   'cubeNet.label': '魔方展开图',
   'cubeNet.stickerLabel': '{position}：{face}',
 }
@@ -448,7 +453,7 @@ const ja: Messages = {
   'app.solverStatus': 'ソルバー: {status}',
   'app.status.ready': '準備完了',
   'app.status.initializing': '初期化中',
-  'tabs.scan': 'キューブ設定',
+  'tabs.scan': 'キューブソルバー',
   'tabs.solve': '解く',
   'tabs.steps': 'ガイド',
   'utility.helpTitle': 'ヘルプ',
@@ -517,10 +522,16 @@ const ja: Messages = {
   'move.counter': '{face}面 — 反時計回り 90°',
   'move.double': '{face}面 — 180°',
   'camera.errorTitle': 'カメラエラー',
+  'camera.title': '6 面撮影',
+  'camera.progress': '{current} / {total} 面を撮影済み',
+  'camera.faces': '撮影する面',
   'camera.scanInstruction': '{face} 面をスキャン（白中心は U、緑は F）',
+  'camera.tip': 'キューブを固定し、ガイド枠いっぱいに合わせます。色が違う場合は前の面に戻って撮り直せます。',
   'camera.undo': '元に戻す',
   'camera.capture': '{face} を撮影',
   'camera.close': '閉じる',
+  'camera.loading': 'カメラ準備中...',
+  'camera.frameNotReady': 'カメラ映像がまだ準備できていません。ライブプレビューを待ってから撮影してください。',
   'cubeNet.label': 'ルービックキューブの展開図',
   'app.workspace': 'ワークスペース',
   'app.utilities': 'ユーティリティ操作',
@@ -533,6 +544,24 @@ const ja: Messages = {
   'settings.settings': '設定',
   'settings.theme': 'テーマ',
   'notice.imageParseError': '画像解析エラー: {message}',
+  'main.heading': '3D キューブ操作',
+  'main.description': '3D キューブを確認し、この画面で撮影、スクランブル、手動復元、AI 解法を行います。',
+  'main.preview': '3D キューブプレビュー',
+  'main.nowPlaying': '現在の手',
+  'main.route': 'AI 解法ルート',
+  'main.aiRoute': 'AI ルート',
+  'main.solveDock': '解法選択',
+  'main.playbackDock': '再生コントロール',
+  'main.solveSummary': '解法サマリー',
+  'main.manualSolve': '手動で解く',
+  'main.aiSolve': 'AI で解く',
+  'main.playbackReady': 'AI ルートを生成しました。浮動コントロールで再生、前へ、次へを使えます。',
+  'share.cardLabel': '共有カード',
+  'share.title': 'このキューブを共有',
+  'share.ready': 'リンクを生成しました。コピーするかカード内容を共有できます。',
+  'share.copied': 'リンクをクリップボードにコピーしました。',
+  'share.copy': 'リンクをコピー',
+  'share.editReady': '共有リンクを生成しました。',
   'scan.path': '{level} パス',
   'stage.followSolution': '解法をたどる',
   'stage.solveDescription': 'アルゴリズムに従い、手動で回すか次の手を自動再生します。',
@@ -591,8 +620,9 @@ const ja: Messages = {
   'guide.solveTitle': '4. 解いて再生',
   'guide.solveBody': '「解く」をクリックし、前へ、次へ、再生でハイライトされた手を追います。',
   'guide.openSolve': '解く画面を開く',
+  'guide.openSolver': 'キューブソルバーを開く',
   'guide.only3x3': '3x3 のみ',
-  'guide.only3x3Body': 'このガイドは 3x3 の全手順、設定、検証、解法、手順追跡を扱います。',
+  'guide.only3x3Body': '現在の基本フローは 2 画面です。キューブソルバーで設定、手動復元、AI ルート、再生を行い、ガイドで記法と考え方を確認します。',
   'solution.heading': '解法: {count} {movesLabel}',
   'solution.solved': '完成！全 {count} 手を適用しました。',
   'solution.moveOf': '{current} / {total} 手',
@@ -617,7 +647,7 @@ const ko: Messages = {
   'app.solverStatus': '솔버: {status}',
   'app.status.ready': '준비됨',
   'app.status.initializing': '초기화 중',
-  'tabs.scan': '큐브 설정',
+  'tabs.scan': '큐브 풀이',
   'tabs.solve': '풀기',
   'tabs.steps': '가이드',
   'utility.helpTitle': '도움말',
@@ -686,10 +716,16 @@ const ko: Messages = {
   'move.counter': '{face} 면 — 반시계 방향 90°',
   'move.double': '{face} 면 — 180°',
   'camera.errorTitle': '카메라 오류',
+  'camera.title': '6면 촬영',
+  'camera.progress': '{current} / {total} 면 촬영됨',
+  'camera.faces': '촬영할 면',
   'camera.scanInstruction': '{face} 면 스캔(흰색 중심은 U, 초록은 F)',
+  'camera.tip': '큐브를 고정하고 가이드 사각형을 채우세요. 색이 맞지 않으면 이전 면으로 돌아가 다시 촬영하세요.',
   'camera.undo': '실행 취소',
   'camera.capture': '{face} 캡처',
   'camera.close': '닫기',
+  'camera.loading': '카메라 준비 중...',
+  'camera.frameNotReady': '카메라 프레임이 아직 준비되지 않았습니다. 실시간 미리보기를 기다린 뒤 다시 촬영하세요.',
   'cubeNet.label': '루빅스 큐브 전개도',
   'app.workspace': '작업 영역',
   'app.utilities': '유틸리티 작업',
@@ -702,6 +738,24 @@ const ko: Messages = {
   'settings.settings': '설정',
   'settings.theme': '테마',
   'notice.imageParseError': '이미지 분석 오류: {message}',
+  'main.heading': '3D 큐브 제어',
+  'main.description': '3D 큐브를 먼저 확인한 뒤 이 화면에서 촬영, 섞기, 수동 복원 또는 AI 풀이를 진행합니다.',
+  'main.preview': '3D 큐브 미리보기',
+  'main.nowPlaying': '현재 수',
+  'main.route': 'AI 풀이 경로',
+  'main.aiRoute': 'AI 경로',
+  'main.solveDock': '풀이 선택',
+  'main.playbackDock': '재생 컨트롤',
+  'main.solveSummary': '풀이 요약',
+  'main.manualSolve': '수동 풀이',
+  'main.aiSolve': 'AI 풀이',
+  'main.playbackReady': 'AI 경로가 생성되었습니다. 떠 있는 컨트롤로 재생, 이전, 다음을 사용할 수 있습니다.',
+  'share.cardLabel': '공유 카드',
+  'share.title': '이 큐브 공유',
+  'share.ready': '링크가 준비되었습니다. 복사하거나 카드 내용을 공유하세요.',
+  'share.copied': '링크가 클립보드에 복사되었습니다.',
+  'share.copy': '링크 복사',
+  'share.editReady': '공유 링크가 준비되었습니다.',
   'scan.path': '{level} 경로',
   'stage.followSolution': '해법 따라가기',
   'stage.solveDescription': '알고리즘을 따르고, 수동으로 돌리거나 다음 수를 자동 재생합니다.',
@@ -760,8 +814,9 @@ const ko: Messages = {
   'guide.solveTitle': '4. 풀고 재생',
   'guide.solveBody': '풀기를 클릭한 뒤 이전, 다음 또는 재생으로 강조된 수를 따라갑니다.',
   'guide.openSolve': '풀기 열기',
+  'guide.openSolver': '큐브 풀이 열기',
   'guide.only3x3': '3x3 전용',
-  'guide.only3x3Body': '이 가이드는 3x3 전체 흐름인 설정, 검증, 풀이, 수 따라가기를 다룹니다.',
+  'guide.only3x3Body': '현재 핵심 흐름은 두 화면입니다. 큐브 풀이에서 설정, 수동 복원, AI 경로, 재생을 하고 가이드에서 표기법과 풀이 개념을 확인합니다.',
   'solution.heading': '해법: {count} {movesLabel}',
   'solution.solved': '완료! 전체 {count}수가 적용되었습니다.',
   'solution.moveOf': '{current} / {total} 수',
@@ -786,7 +841,7 @@ const fr: Messages = {
   'app.solverStatus': 'Solveur : {status}',
   'app.status.ready': 'prêt',
   'app.status.initializing': 'initialisation',
-  'tabs.scan': 'Configurer',
+  'tabs.scan': 'Résoudre le cube',
   'tabs.solve': 'Résoudre',
   'tabs.steps': 'Guide',
   'utility.helpTitle': 'Centre d’aide',
@@ -855,10 +910,16 @@ const fr: Messages = {
   'move.counter': 'Face {face} — 90° antihoraire',
   'move.double': 'Face {face} — 180°',
   'camera.errorTitle': 'Erreur caméra',
+  'camera.title': 'Capture des 6 faces',
+  'camera.progress': '{current} / {total} faces capturées',
+  'camera.faces': 'Faces à capturer',
   'camera.scanInstruction': 'Scannez la face {face} (centre blanc en U, vert en F)',
+  'camera.tip': 'Gardez le cube immobile, remplissez le carré guide, et reprenez la face précédente si les couleurs semblent incorrectes.',
   'camera.undo': 'Annuler',
   'camera.capture': 'Capturer {face}',
   'camera.close': 'Fermer',
+  'camera.loading': 'Préparation de la caméra...',
+  'camera.frameNotReady': 'L’image caméra n’est pas encore prête. Attendez l’aperçu en direct, puis capturez à nouveau.',
   'cubeNet.label': 'Patron déplié du Rubik’s Cube',
   'app.workspace': 'Espace de travail',
   'app.utilities': 'Actions utilitaires',
@@ -871,6 +932,24 @@ const fr: Messages = {
   'settings.settings': 'Réglages',
   'settings.theme': 'Thème',
   'notice.imageParseError': 'Erreur d’analyse d’image : {message}',
+  'main.heading': 'Contrôle 3D du cube',
+  'main.description': 'Prévisualisez le cube 3D, puis capturez, mélangez, restaurez manuellement ou lancez l’IA depuis cet écran.',
+  'main.preview': 'Aperçu 3D du cube',
+  'main.nowPlaying': 'Mouvement actuel',
+  'main.route': 'Parcours IA',
+  'main.aiRoute': 'Parcours IA',
+  'main.solveDock': 'Choix de résolution',
+  'main.playbackDock': 'Contrôles de lecture',
+  'main.solveSummary': 'Résumé de résolution',
+  'main.manualSolve': 'Résolution manuelle',
+  'main.aiSolve': 'Résolution IA',
+  'main.playbackReady': 'Le parcours IA est prêt. Utilisez lecture, précédent ou suivant dans les contrôles flottants.',
+  'share.cardLabel': 'Carte de partage',
+  'share.title': 'Partager ce cube',
+  'share.ready': 'Le lien est prêt. Copiez-le ou partagez le contenu de la carte.',
+  'share.copied': 'Lien copié dans le presse-papiers.',
+  'share.copy': 'Copier le lien',
+  'share.editReady': 'Lien de partage prêt.',
   'scan.path': 'Parcours {level}',
   'stage.followSolution': 'Suivre la solution',
   'stage.solveDescription': 'Suivez l’algorithme, tournez manuellement ou lancez le prochain mouvement.',
@@ -929,8 +1008,9 @@ const fr: Messages = {
   'guide.solveTitle': '4. Résoudre et rejouer',
   'guide.solveBody': 'Cliquez sur Résoudre, puis utilisez Préc., Suiv. ou Lecture en suivant le mouvement surligné.',
   'guide.openSolve': 'Ouvrir Résoudre',
+  'guide.openSolver': 'Ouvrir le solveur',
   'guide.only3x3': '3x3 uniquement',
-  'guide.only3x3Body': 'Ce guide couvre le flux complet 3x3 : configurer, vérifier, résoudre, puis suivre les mouvements.',
+  'guide.only3x3Body': 'Le flux principal tient sur deux écrans : le solveur pour configurer, restaurer manuellement, générer le parcours IA et lire les étapes ; le guide pour la notation et les concepts.',
   'solution.heading': 'Solution : {count} {movesLabel}',
   'solution.solved': 'Résolu ! Les {count} mouvements ont été appliqués.',
   'solution.moveOf': 'Mouvement {current} sur {total}',
@@ -980,8 +1060,9 @@ function normalizeLanguage(input: string | null | undefined): Language | null {
 function readInitialLanguage(): Language {
   if (typeof window === 'undefined') return 'en'
   try {
+    const isManualOverride = window.localStorage.getItem(LS_LANGUAGE_SOURCE) === 'manual'
     const stored = normalizeLanguage(window.localStorage.getItem(LS_LANGUAGE))
-    if (stored) return stored
+    if (isManualOverride && stored) return stored
   } catch {
     // Ignore storage errors and fall through to browser language.
   }
@@ -1004,23 +1085,28 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.lang = HTML_LANG[language]
+  }, [language])
+
+  const setLanguage = useCallback((nextLanguage: Language) => {
+    setLanguageState(nextLanguage)
     try {
-      window.localStorage.setItem(LS_LANGUAGE, language)
+      window.localStorage.setItem(LS_LANGUAGE, nextLanguage)
+      window.localStorage.setItem(LS_LANGUAGE_SOURCE, 'manual')
     } catch {
       // Language selection is still usable without persistence.
     }
-  }, [language])
+  }, [])
 
   const value = useMemo<I18nContextValue>(() => {
     return {
       language,
-      setLanguage: setLanguageState,
+      setLanguage,
       t(key, values) {
         const message = dictionaries[language][key] ?? en[key] ?? key
         return interpolate(message, values)
       },
     }
-  }, [language])
+  }, [language, setLanguage])
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
 }

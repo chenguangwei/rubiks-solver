@@ -8,8 +8,11 @@ export type ImageBuffer = {
   data: Uint8ClampedArray
 }
 
+export type RgbSample = [number, number, number]
+type LabSample = [number, number, number]
+
 export type ParseResult =
-  | { ok: true; state: string; samples: Record<number, [number, number, number]> }
+  | { ok: true; state: string; samples: Record<number, RgbSample> }
   | { ok: false; reason: string }
 
 export type ParseOptions = {
@@ -78,13 +81,67 @@ function rgbToLab([r, g, b]: [number, number, number]): [number, number, number]
 }
 
 function labDistance(
-  a: [number, number, number],
-  b: [number, number, number],
+  a: LabSample,
+  b: LabSample,
 ): number {
   const dl = a[0] - b[0]
   const da = a[1] - b[1]
   const db = a[2] - b[2]
   return dl * dl + da * da + db * db
+}
+
+function wcaLabByFace(): Record<Face, LabSample> {
+  const out: Record<Face, LabSample> = {} as Record<Face, LabSample>
+  for (const face of FACES) out[face] = rgbToLab(hexToRgb(FACE_COLORS[face]))
+  return out
+}
+
+function nearestFace(
+  lab: LabSample,
+  refsByFace: Record<Face, LabSample>,
+): Face {
+  let best: Face = FACES[0]
+  let bestDist = Infinity
+  for (const face of FACES) {
+    const d = labDistance(lab, refsByFace[face])
+    if (d < bestDist) {
+      bestDist = d
+      best = face
+    }
+  }
+  return best
+}
+
+function bestCenterAssignment(centerLab: Record<Face, LabSample>): Record<Face, Face> {
+  const wcaLab = wcaLabByFace()
+  let bestPerm: Face[] | null = null
+  let bestTotal = Infinity
+
+  function permute(arr: Face[], start: number) {
+    if (start === arr.length) {
+      let total = 0
+      for (let i = 0; i < FACES.length; i++) {
+        total += labDistance(centerLab[FACES[i]], wcaLab[arr[i]])
+      }
+      if (total < bestTotal) {
+        bestTotal = total
+        bestPerm = arr.slice()
+      }
+      return
+    }
+    for (let i = start; i < arr.length; i++) {
+      ;[arr[start], arr[i]] = [arr[i], arr[start]]
+      permute(arr, start + 1)
+      ;[arr[start], arr[i]] = [arr[i], arr[start]]
+    }
+  }
+  permute(FACES.slice() as Face[], 0)
+
+  const centerPosToWcaFace: Record<Face, Face> = {} as Record<Face, Face>
+  for (let i = 0; i < FACES.length; i++) {
+    centerPosToWcaFace[FACES[i]] = bestPerm![i]
+  }
+  return centerPosToWcaFace
 }
 
 function sampleAverage(
@@ -211,7 +268,7 @@ export function parseNet(img: ImageBuffer, options: ParseOptions = {}): ParseRes
     }
   }
 
-  const samples: Record<number, [number, number, number]> = {}
+  const samples: Record<number, RgbSample> = {}
   for (const p of PLACEMENTS) {
     const cx = Math.floor((p.col + 0.5) * stickerW)
     const cy = Math.floor((p.row + 0.5) * stickerH)
@@ -221,67 +278,17 @@ export function parseNet(img: ImageBuffer, options: ParseOptions = {}): ParseRes
   // Reference Lab values for the six WCA face colors. Used either directly
   // (no calibration) or as the "what does this center sample look like?"
   // lookup target during calibration.
-  const wcaLab: Record<Face, [number, number, number]> = {} as Record<
-    Face,
-    [number, number, number]
-  >
-  for (const face of FACES) wcaLab[face] = rgbToLab(hexToRgb(FACE_COLORS[face]))
-
-  function nearestFace(
-    lab: [number, number, number],
-    refsByFace: Record<Face, [number, number, number]>,
-  ): Face {
-    let best: Face = FACES[0]
-    let bestDist = Infinity
-    for (const face of FACES) {
-      const d = labDistance(lab, refsByFace[face])
-      if (d < bestDist) {
-        bestDist = d
-        best = face
-      }
-    }
-    return best
-  }
+  const wcaLab = wcaLabByFace()
 
   const stateChars: string[] = new Array(54)
 
   if (calibrate) {
-    const centerLab: Record<Face, [number, number, number]> = {} as Record<
-      Face,
-      [number, number, number]
-    >
+    const centerLab: Record<Face, LabSample> = {} as Record<Face, LabSample>
     for (const face of FACES) {
       centerLab[face] = rgbToLab(samples[CENTER_INDICES[face]])
     }
 
-    // Find the assignment of center positions -> WCA faces that minimizes the
-    // total Lab distance. Brute-force over all 720 permutations.
-    let bestPerm: Face[] | null = null
-    let bestTotal = Infinity
-    function permute(arr: Face[], start: number) {
-      if (start === arr.length) {
-        let total = 0
-        for (let i = 0; i < FACES.length; i++) {
-          total += labDistance(centerLab[FACES[i]], wcaLab[arr[i]])
-        }
-        if (total < bestTotal) {
-          bestTotal = total
-          bestPerm = arr.slice()
-        }
-        return
-      }
-      for (let i = start; i < arr.length; i++) {
-        ;[arr[start], arr[i]] = [arr[i], arr[start]]
-        permute(arr, start + 1)
-        ;[arr[start], arr[i]] = [arr[i], arr[start]]
-      }
-    }
-    permute(FACES.slice() as Face[], 0)
-
-    const centerPosToWcaFace: Record<Face, Face> = {} as Record<Face, Face>
-    for (let i = 0; i < FACES.length; i++) {
-      centerPosToWcaFace[FACES[i]] = bestPerm![i]
-    }
+    const centerPosToWcaFace = bestCenterAssignment(centerLab)
 
     // Each sticker takes the WCA letter of whichever center it most resembles.
     for (const p of PLACEMENTS) {
@@ -303,34 +310,54 @@ export function parseNet(img: ImageBuffer, options: ParseOptions = {}): ParseRes
  * Returns an array of 9 Face characters.
  */
 export function parseFace(img: ImageBuffer, options: ParseOptions = {}): Face[] {
+  const wcaLab = wcaLabByFace()
+  return sampleFace(img, options).map((sample) => nearestFace(rgbToLab(sample), wcaLab))
+}
+
+/**
+ * Sample the 9 sticker centers from a single face image. The scanner stores
+ * these raw samples for all six faces, then classifies them together so the
+ * six center stickers calibrate the camera's lighting and color cast.
+ */
+export function sampleFace(img: ImageBuffer, options: ParseOptions = {}): RgbSample[] {
   const sampleHalfWidth = options.sampleHalfWidth ?? 4
   const stickerW = img.width / 3
   const stickerH = img.height / 3
-  
-  const wcaLab: Record<Face, [number, number, number]> = {} as Record<Face, [number, number, number]>
-  for (const face of FACES) wcaLab[face] = rgbToLab(hexToRgb(FACE_COLORS[face]))
-
-  function nearestFace(lab: [number, number, number]): Face {
-    let best: Face = FACES[0]
-    let bestDist = Infinity
-    for (const face of FACES) {
-      const d = labDistance(lab, wcaLab[face])
-      if (d < bestDist) {
-        bestDist = d
-        best = face
-      }
-    }
-    return best
-  }
-
-  const faceChars: Face[] = []
+  const samples: RgbSample[] = []
   for (let row = 0; row < 3; row++) {
     for (let col = 0; col < 3; col++) {
       const cx = Math.floor((col + 0.5) * stickerW)
       const cy = Math.floor((row + 0.5) * stickerH)
-      const sample = sampleAverage(img, cx, cy, sampleHalfWidth)
-      faceChars.push(nearestFace(rgbToLab(sample)))
+      samples.push(sampleAverage(img, cx, cy, sampleHalfWidth))
     }
   }
-  return faceChars
+  return samples
+}
+
+export function classifyScannedFaces(
+  samplesByFace: Partial<Record<Face, readonly RgbSample[]>>,
+): ParseResult {
+  const centerLab: Record<Face, LabSample> = {} as Record<Face, LabSample>
+  const flatSamples: Record<number, RgbSample> = {}
+  for (const face of FACES) {
+    const samples = samplesByFace[face]
+    if (!samples || samples.length !== 9) {
+      return { ok: false, reason: `Missing 9 samples for ${face} face` }
+    }
+    centerLab[face] = rgbToLab(samples[4])
+  }
+
+  const centerPosToWcaFace = bestCenterAssignment(centerLab)
+  const stateChars: string[] = []
+  for (const face of FACES) {
+    const samples = samplesByFace[face]!
+    for (let facePos = 0; facePos < 9; facePos++) {
+      const sample = samples[facePos]
+      const closestCenter = nearestFace(rgbToLab(sample), centerLab)
+      stateChars.push(centerPosToWcaFace[closestCenter])
+      flatSamples[stateChars.length - 1] = sample
+    }
+  }
+
+  return { ok: true, state: stateChars.join(''), samples: flatSamples }
 }

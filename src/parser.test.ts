@@ -1,6 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest'
-import { SOLVED_STATE } from './cube'
-import { parseNet } from './parser'
+import { FACE_COLORS, FACES, SOLVED_STATE } from './cube'
+import { classifyScannedFaces, parseNet } from './parser'
+import type { Face } from './cube'
+import type { RgbSample } from './parser'
 import { renderState } from './render'
 import { initSolverCore, randomState } from './solver-core'
 
@@ -72,6 +74,36 @@ describe('parseNet', () => {
     }
     const padded = { width: W, height: H, data }
     const result = parseNet(padded)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.state).toBe(expected)
+  })
+})
+
+function hexToRgb(hex: string): RgbSample {
+  const value = parseInt(hex.slice(1), 16)
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255]
+}
+
+describe('classifyScannedFaces', () => {
+  it('classifies six camera faces with center calibration', () => {
+    const expected = randomState()
+    const observedPalette: Record<Face, RgbSample> = {
+      ...Object.fromEntries(FACES.map((face) => [face, hexToRgb(FACE_COLORS[face])])) as Record<Face, RgbSample>,
+      // Deliberately shift orange toward yellow; center calibration keeps L and D distinct.
+      L: [232, 182, 22],
+    }
+    const samplesByFace: Partial<Record<Face, RgbSample[]>> = {}
+    for (let faceIndex = 0; faceIndex < FACES.length; faceIndex++) {
+      const face = FACES[faceIndex]
+      const offset = faceIndex * 9
+      samplesByFace[face] = expected
+        .slice(offset, offset + 9)
+        .split('')
+        .map((letter) => observedPalette[letter as Face])
+    }
+
+    const result = classifyScannedFaces(samplesByFace)
+
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.state).toBe(expected)
   })

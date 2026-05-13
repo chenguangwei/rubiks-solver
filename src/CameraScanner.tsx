@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { FACES } from './cube'
+import type { CSSProperties } from 'react'
+import { FACE_COLORS, FACES } from './cube'
 import type { Face } from './cube'
 import { useI18n } from './i18n'
-import { parseFace } from './parser'
+import { classifyScannedFaces, parseFace, sampleFace } from './parser'
+import type { RgbSample } from './parser'
 
 interface CameraScannerProps {
   onComplete: (state: string) => void
@@ -14,7 +16,9 @@ export default function CameraScanner({ onComplete, onCancel }: CameraScannerPro
   const videoRef = useRef<HTMLVideoElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [scannedFaces, setScannedFaces] = useState<Partial<Record<Face, Face[]>>>({})
+  const [sampledFaces, setSampledFaces] = useState<Partial<Record<Face, RgbSample[]>>>({})
   const [currentFaceIndex, setCurrentFaceIndex] = useState(0)
+  const [videoReady, setVideoReady] = useState(false)
 
   const targetFace = FACES[currentFaceIndex]
   const capturedCount = Object.keys(scannedFaces).length
@@ -44,8 +48,13 @@ export default function CameraScanner({ onComplete, onCancel }: CameraScannerPro
   function handleCapture() {
     if (!videoRef.current) return
     const video = videoRef.current
-    const canvas = document.createElement('canvas')
     const size = Math.min(video.videoWidth, video.videoHeight)
+    if (!videoReady || size <= 0) {
+      setError(t('camera.frameNotReady'))
+      return
+    }
+
+    const canvas = document.createElement('canvas')
     canvas.width = size
     canvas.height = size
     const ctx = canvas.getContext('2d')
@@ -63,22 +72,40 @@ export default function CameraScanner({ onComplete, onCancel }: CameraScannerPro
       data: imageData.data,
     }
     
+    const samples = sampleFace(imgBuffer)
     const colors = parseFace(imgBuffer)
     const newScanned = { ...scannedFaces, [targetFace]: colors }
+    const newSamples = { ...sampledFaces, [targetFace]: samples }
     setScannedFaces(newScanned)
+    setSampledFaces(newSamples)
 
     if (currentFaceIndex < 5) {
       setCurrentFaceIndex(currentFaceIndex + 1)
     } else {
-      // All faces scanned, construct state string
-      const stateString = FACES.map(f => newScanned[f]!.join('')).join('')
-      onComplete(stateString)
+      const result = classifyScannedFaces(newSamples)
+      if (result.ok) {
+        onComplete(result.state)
+      } else {
+        setError(result.reason)
+      }
     }
   }
 
   function handleUndo() {
     if (currentFaceIndex > 0) {
+      const previousFace = FACES[currentFaceIndex - 1]
       setCurrentFaceIndex(currentFaceIndex - 1)
+      setScannedFaces((current) => {
+        const next = { ...current }
+        delete next[previousFace]
+        return next
+      })
+      setSampledFaces((current) => {
+        const next = { ...current }
+        delete next[previousFace]
+        return next
+      })
+      setError(null)
     }
   }
 
@@ -107,15 +134,42 @@ export default function CameraScanner({ onComplete, onCancel }: CameraScannerPro
           <div 
             key={face} 
             className={`face-thumb ${idx === currentFaceIndex ? 'active' : ''} ${scannedFaces[face] ? 'done' : ''}`}
-            title={t(`face.name.${face}`)}
+            title={`${face} ${t(`face.name.${face}`)}`}
           >
-            {face}
+            {scannedFaces[face] ? (
+              <>
+                <span className="face-thumb-grid" aria-hidden="true">
+                  {scannedFaces[face]!.map((sticker, stickerIndex) => (
+                    <span
+                      key={`${face}-${stickerIndex}`}
+                      style={{ '--face-color': FACE_COLORS[sticker] } as CSSProperties}
+                    />
+                  ))}
+                </span>
+                <span className="face-thumb-label">
+                  <strong>{face}</strong>
+                  <small>{t(`face.name.${face}`)}</small>
+                </span>
+              </>
+            ) : (
+              <span className="face-thumb-label">
+                <strong>{face}</strong>
+                <small>{t(`face.name.${face}`)}</small>
+              </span>
+            )}
           </div>
         ))}
       </div>
 
       <div className="camera-viewport">
-        <video ref={videoRef} autoPlay playsInline muted />
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          onLoadedMetadata={() => setVideoReady(true)}
+          onCanPlay={() => setVideoReady(true)}
+        />
         <div className="ar-overlay">
           <div className="ar-grid">
              {Array.from({length: 9}).map((_, i) => <div key={i} className="ar-cell" />)}
@@ -130,8 +184,8 @@ export default function CameraScanner({ onComplete, onCancel }: CameraScannerPro
         <p className="camera-tip">{t('camera.tip')}</p>
         <div className="camera-actions">
           <button disabled={currentFaceIndex === 0} onClick={handleUndo}>{t('camera.undo')}</button>
-          <button className="primary" onClick={handleCapture}>
-            {t('camera.capture', { face: targetFace })}
+          <button className="primary" disabled={!videoReady} onClick={handleCapture}>
+            {videoReady ? t('camera.capture', { face: targetFace }) : t('camera.loading')}
           </button>
         </div>
       </div>

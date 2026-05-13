@@ -2520,11 +2520,15 @@ button.speed {
 }
 
 .face-thumb {
-  width: 32px;
-  height: 32px;
+  min-width: 72px;
+  height: 48px;
   border-radius: 6px;
-  display: grid;
+  display: flex;
   place-items: center;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 7px;
   font-weight: bold;
   background: #e2e8f0;
   color: #64748b;
@@ -2538,9 +2542,48 @@ button.speed {
 }
 
 .face-thumb.done {
-  background: #dcfce7;
+  background: #f8fbff;
   color: #166534;
   border-color: #22c55e;
+}
+
+.face-thumb-grid {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  padding: 2px;
+  border-radius: 4px;
+  background: #172033;
+}
+
+.face-thumb-grid span {
+  border-radius: 1px;
+  background: var(--face-color);
+}
+
+.face-thumb-label {
+  display: grid;
+  gap: 1px;
+  line-height: 1;
+  text-align: left;
+}
+
+.face-thumb-label strong {
+  font-size: 0.92rem;
+}
+
+.face-thumb-label small {
+  max-width: 44px;
+  overflow: hidden;
+  color: currentColor;
+  font-size: 0.66rem;
+  font-weight: 850;
+  opacity: 0.78;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .close-btn {

@@ -10,6 +10,8 @@ const appMocks = vi.hoisted(() => ({
   loadImageToBuffer: vi.fn(),
   parseNet: vi.fn(),
   parseFace: vi.fn(),
+  sampleFace: vi.fn(),
+  classifyScannedFaces: vi.fn(),
   solve: vi.fn(),
   solveTight: vi.fn(),
   terminateSolver: vi.fn(),
@@ -27,6 +29,8 @@ vi.mock('./imageLoader', () => ({
 vi.mock('./parser', () => ({
   parseNet: appMocks.parseNet,
   parseFace: appMocks.parseFace,
+  sampleFace: appMocks.sampleFace,
+  classifyScannedFaces: appMocks.classifyScannedFaces,
 }))
 
 // jsdom's Worker support is limited. Mock the solver layer so App can mount
@@ -62,6 +66,22 @@ describe('App', () => {
       samples: {},
     })
     appMocks.parseFace.mockReturnValue(['U', 'U', 'U', 'U', 'U', 'U', 'U', 'U', 'U'])
+    appMocks.sampleFace.mockReturnValue([
+      [255, 255, 255],
+      [255, 255, 255],
+      [255, 255, 255],
+      [255, 255, 255],
+      [255, 255, 255],
+      [255, 255, 255],
+      [255, 255, 255],
+      [255, 255, 255],
+      [255, 255, 255],
+    ])
+    appMocks.classifyScannedFaces.mockReturnValue({
+      ok: true,
+      state: IMPORTED_STATE,
+      samples: {},
+    })
     appMocks.solve.mockResolvedValue(['R'])
     appMocks.solveTight.mockResolvedValue(['R'])
     appMocks.terminateSolver.mockImplementation(() => {})
@@ -129,6 +149,11 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /Photo Solve/i }))
     expect(screen.getByText(/6-face capture/i)).toBeInTheDocument()
     expect(screen.getByText(/0 \/ 6 faces captured/i)).toBeInTheDocument()
+    const captureFaces = screen.getByLabelText('Faces to capture')
+    expect(within(captureFaces).getByTitle('U Up')).toHaveTextContent('U')
+    expect(within(captureFaces).getByTitle('U Up')).toHaveTextContent('Up')
+    expect(within(captureFaces).getByTitle('R Right')).toHaveTextContent('R')
+    expect(within(captureFaces).getByTitle('R Right')).toHaveTextContent('Right')
   })
 
   it('keeps the main screen focused on 3D preview and solve choices', () => {
