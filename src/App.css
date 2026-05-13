@@ -399,6 +399,63 @@ button:disabled {
   border: 1px solid #c8daf8;
 }
 
+.share-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(240px, 2fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid rgba(142, 178, 232, 0.72);
+  border-radius: 12px;
+  color: #10203a;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 16px 36px rgba(32, 49, 80, 0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.share-card-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.share-card-copy strong {
+  font-size: 1rem;
+}
+
+.share-card-copy span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.share-card a {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #d7e4f7;
+  border-radius: 8px;
+  color: #0752c7;
+  background: rgba(234, 242, 255, 0.72);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.share-card-actions button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.86rem;
+}
+
 .error {
   color: #a30f2a;
   background: #fff0f3;
@@ -416,6 +473,10 @@ button:disabled {
 .workspace-solve {
   grid-template-columns: minmax(680px, 1fr) minmax(310px, 360px);
   gap: 22px;
+}
+
+.workspace-scan {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .workspace-steps {
@@ -750,6 +811,246 @@ button:disabled {
   background:
     radial-gradient(circle at 40% 72%, rgba(255, 213, 0, 0.16), transparent 30%),
     linear-gradient(145deg, #fbfdff 0%, #eef5fb 100%);
+}
+
+.main-control-screen {
+  display: grid;
+  gap: 16px;
+}
+
+.main-cube-frame {
+  position: relative;
+  height: clamp(460px, 66vh, 760px);
+  min-height: 0;
+  border: 1px solid #dbe6f6;
+  border-radius: 14px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 32% 74%, rgba(255, 213, 0, 0.16), transparent 28%),
+    radial-gradient(circle at 82% 18%, rgba(12, 159, 84, 0.1), transparent 30%),
+    linear-gradient(145deg, #fbfdff 0%, #edf5ff 100%);
+}
+
+.corner-actions {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+}
+
+.corner-actions.top-left {
+  top: 16px;
+  left: 16px;
+}
+
+.corner-actions.top-right {
+  top: 16px;
+  right: 16px;
+}
+
+.corner-actions.bottom-left {
+  bottom: 16px;
+  left: 16px;
+}
+
+.corner-actions.bottom-right {
+  right: 16px;
+  bottom: 16px;
+}
+
+.glass-action {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border: 1px solid rgba(180, 202, 235, 0.72);
+  border-radius: 999px;
+  color: #15223a;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: 0 12px 28px rgba(16, 24, 40, 0.1);
+  backdrop-filter: blur(14px) saturate(1.25);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.glass-action span {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(18, 103, 220, 0.12);
+  color: var(--blue-deep);
+}
+
+.file-glass-action input {
+  pointer-events: none;
+}
+
+.step-hud {
+  position: absolute;
+  top: 68px;
+  left: 16px;
+  z-index: 6;
+  min-width: 108px;
+  display: grid;
+  gap: 2px;
+  padding: 9px 11px;
+  border: 1px solid rgba(7, 82, 199, 0.25);
+  border-radius: 10px;
+  color: #0f2343;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.1);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.step-hud span,
+.step-hud small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.step-hud strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.35rem;
+  line-height: 1.05;
+}
+
+.solve-choice-dock,
+.floating-playback-dock,
+.solve-status-strip,
+.main-route-panel,
+.main-manual-panel {
+  border: 1px solid #d7e4f7;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.48);
+  box-shadow: 0 12px 30px rgba(32, 49, 80, 0.1);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.solve-choice-dock {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  z-index: 7;
+  width: auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  transform: translateX(-50%);
+}
+
+.solve-choice-dock button {
+  min-width: 118px;
+  min-height: 42px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.58);
+  font-size: 0.92rem;
+}
+
+.solve-choice-dock button.active {
+  color: var(--blue-deep);
+  border-color: #9ec1f4;
+  background: #eaf2ff;
+}
+
+.floating-playback-dock {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  z-index: 8;
+  width: auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  transform: translateX(-50%);
+}
+
+.floating-playback-dock button {
+  min-width: 104px;
+  min-height: 42px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.58);
+  font-size: 0.9rem;
+}
+
+.floating-playback-dock .play-toggle {
+  min-width: 118px;
+  font-size: 0.94rem;
+}
+
+.solve-status-strip {
+  border-radius: 12px;
+  display: grid;
+  padding: 12px 14px;
+}
+
+.solve-status-strip > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.solve-status-strip strong {
+  font-size: 1.05rem;
+}
+
+.solve-status-strip span {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.status-metrics {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.status-metrics span {
+  padding: 6px 9px;
+  border: 1px solid #dbe6f6;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.58);
+  color: #52647f;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.main-route-panel,
+.main-manual-panel {
+  border-radius: 12px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.route-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.route-title-row span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.compact-step-controls {
+  flex-wrap: wrap;
 }
 
 .coach-card {
@@ -1594,6 +1895,15 @@ button.speed {
     font-size: 0.86rem;
   }
 
+  .share-card {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .share-card-actions {
+    justify-content: flex-start;
+  }
+
   .tab-icon {
     width: 23px;
     height: 23px;
@@ -1834,6 +2144,89 @@ button.speed {
     display: none;
   }
 
+  .main-cube-frame {
+    height: min(58vh, 520px);
+    min-height: 390px;
+  }
+
+  .glass-action {
+    min-height: 36px;
+    padding: 7px 10px;
+    gap: 6px;
+    font-size: 0.82rem;
+  }
+
+  .glass-action span {
+    width: 20px;
+    height: 20px;
+  }
+
+  .corner-actions.top-left,
+  .corner-actions.top-right {
+    top: 10px;
+  }
+
+  .corner-actions.bottom-left,
+  .corner-actions.bottom-right {
+    bottom: 10px;
+  }
+
+  .corner-actions.top-left,
+  .corner-actions.bottom-left,
+  .step-hud {
+    left: 10px;
+  }
+
+  .corner-actions.top-right,
+  .corner-actions.bottom-right {
+    right: 10px;
+  }
+
+  .step-hud {
+    top: 54px;
+    padding: 7px 9px;
+  }
+
+  .solve-choice-dock {
+    bottom: 10px;
+    width: auto;
+    min-width: 0;
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .solve-choice-dock button {
+    min-width: 96px;
+    min-height: 36px;
+    padding: 7px 10px;
+    font-size: 0.78rem;
+  }
+
+  .floating-playback-dock {
+    bottom: 10px;
+    width: auto;
+    min-width: 0;
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .floating-playback-dock button {
+    min-width: 78px;
+    min-height: 36px;
+    padding: 7px 9px;
+    font-size: 0.76rem;
+  }
+
+  .floating-playback-dock .play-toggle {
+    min-width: 88px;
+  }
+
+  .main-route-panel,
+  .main-manual-panel,
+  .solve-status-strip {
+    padding: 10px;
+  }
+
   .workspace-solve {
     margin-top: 14px;
     padding-bottom: 18px;
@@ -2030,6 +2423,11 @@ button.speed {
     min-width: 76px;
     flex: 0 0 auto;
     font-size: 0.8rem;
+  }
+
+  .share-card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 
   .header-actions {

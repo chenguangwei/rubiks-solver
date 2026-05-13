@@ -18,6 +18,29 @@ import { applyMoves } from './solver'
 const INTERIOR_COLOR = '#161616'
 const CUBIE_SIZE = 0.94
 
+function blendHexColor(hex: string, target: string, amount: number) {
+  const normalized = hex.replace('#', '')
+  const targetNormalized = target.replace('#', '')
+  const sourceValue = parseInt(normalized, 16)
+  const targetValue = parseInt(targetNormalized, 16)
+  if (!Number.isFinite(sourceValue) || !Number.isFinite(targetValue)) return hex
+
+  const source = [
+    (sourceValue >> 16) & 255,
+    (sourceValue >> 8) & 255,
+    sourceValue & 255,
+  ]
+  const destination = [
+    (targetValue >> 16) & 255,
+    (targetValue >> 8) & 255,
+    targetValue & 255,
+  ]
+  const mixed = source.map((channel, index) =>
+    Math.round(channel + (destination[index] - channel) * amount),
+  )
+  return `#${mixed.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
+}
+
 const ALL_CUBIES: readonly Vec3[] = (() => {
   const out: Vec3[] = []
   for (const x of [-1, 0, 1] as const) {
@@ -45,7 +68,7 @@ function colorsForState(state: string, highlights?: readonly number[]): Map<stri
       const letter = state[s.index] as Face
       const color = FACE_COLORS[letter] ?? '#888'
       const isDimmed = highlights && !highlights.includes(s.index)
-      const finalColor = isDimmed ? '#444444' : color
+      const finalColor = isDimmed ? blendHexColor(color, '#eef5ff', 0.38) : color
 
       const slot =
         s.normal[0] === 1

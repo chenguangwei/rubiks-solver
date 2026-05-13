@@ -73,6 +73,12 @@ describe('App', () => {
         }),
       },
     })
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+      },
+    })
   })
 
   it('renders the title', () => {
@@ -80,7 +86,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: /RubikSolver/i })).toBeInTheDocument()
   })
 
-  it('automatically solves a valid imported image state', async () => {
+  it('automatically solves a valid imported image state on the main screen', async () => {
     const { container } = render(<App />)
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
 
@@ -89,17 +95,17 @@ describe('App', () => {
     })
 
     await waitFor(() => expect(appMocks.solve).toHaveBeenCalledWith(IMPORTED_STATE))
-    expect(
-      await screen.findByRole('heading', { name: 'Solution: 1 move' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByLabelText('AI solution route')).toBeInTheDocument()
+    expect(screen.getByLabelText('Playback controls')).toBeInTheDocument()
   })
 
-  it('renders the simplified product navigation without duplicate phase rails', () => {
+  it('renders the simplified two-tab product navigation without duplicate phase rails', () => {
     const { container } = render(<App />)
+    const nav = screen.getByLabelText('Workspace')
 
-    expect(screen.getByRole('button', { name: /Set Cube/i })).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /^Solve$/i }).length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: /Guide/i })).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: /Cube Solver/i })).toBeInTheDocument()
+    expect(within(nav).queryByRole('button', { name: /^Solve$/i })).not.toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: /Guide/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /2x2/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /4x4/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /5x5/i })).not.toBeInTheDocument()
@@ -114,44 +120,40 @@ describe('App', () => {
   it('prioritizes photo solve and random scramble as the main setup actions', () => {
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: /Solve a Real Cube/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /3D Cube Control/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Photo Solve/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Random Scramble/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Learn Restore/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Manual Turns/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Manual Solve/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /AI Solve/i })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Photo Solve/i }))
     expect(screen.getByText(/6-face capture/i)).toBeInTheDocument()
     expect(screen.getByText(/0 \/ 6 faces captured/i)).toBeInTheDocument()
   })
 
-  it('keeps Set Cube focused on net editing and blocks impossible paint edits', () => {
-    const { container } = render(<App />)
+  it('keeps the main screen focused on 3D preview and solve choices', () => {
+    render(<App />)
 
     expect(screen.queryByRole('button', { name: /Review U/i })).not.toBeInTheDocument()
-    expect(screen.getAllByText(/Review colors/i).length).toBeGreaterThan(0)
-    expect(screen.getAllByRole('button', { name: /^Solve$/i }).at(-1)).not.toBeDisabled()
-
-    fireEvent.click(screen.getByRole('button', { name: /Select F Green/i }))
-    fireEvent.click(container.querySelector('rect[data-index="0"]')!)
-    expect(screen.getByText(/Edit blocked/i)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Apply Repair Suggestion/i })).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/3D cube preview/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Solve choices/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /AI Solve/i })).not.toBeDisabled()
+    expect(screen.queryByRole('heading', { name: /Edit Net/i })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Rotate View/i }))
-    expect(screen.getByText(/Net view rotated 90/i)).toBeInTheDocument()
+    expect(screen.getByText(/3D preview is draggable/i)).toBeInTheDocument()
   })
 
   it('supports solve controls and records manual moves', async () => {
     render(<App />)
 
     fireEvent.click(screen.getByRole('button', { name: /Random Scramble/i }))
-    fireEvent.click(screen.getAllByRole('button', { name: /^Solve$/i }).at(-1)!)
-    expect(await screen.findByRole('heading', { name: /Solve Coach/i })).toBeInTheDocument()
-    expect(await screen.findByRole('heading', { name: /Current Algorithm/i })).toBeInTheDocument()
-
-    fireEvent.click(within(screen.getByLabelText('Workspace')).getByRole('button', { name: /^Solve$/i }))
-    fireEvent.click(screen.getByRole('button', { name: /^U$/i }))
-    expect(within(screen.getByLabelText('Operation Controls')).getByText(/1 moves/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /AI Solve/i }))
+    const routePanel = await screen.findByLabelText('AI solution route')
+    expect(within(routePanel).getByText(/^AI route$/i)).toBeInTheDocument()
+    expect(await screen.findByLabelText('Playback controls')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Solve choices')).not.toBeInTheDocument()
+    expect(within(routePanel).getByText(/^R$/)).toBeInTheDocument()
   })
 
   it('renders the visual beginner tutorial instead of secondary product pages', () => {
@@ -174,17 +176,27 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: /2x2/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /4x4/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /5x5/i })).not.toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /^Solve$/i }).at(-1)).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: /AI Solve/i })).not.toBeDisabled()
   })
 
-  it('makes picker selection visible and disables fill', () => {
-    const { container } = render(<App />)
+  it('shows a share card with a copyable state link', async () => {
+    render(<App />)
 
-    fireEvent.click(screen.getByRole('button', { name: /Picker/i }))
-    fireEvent.click(container.querySelector('rect[data-index="0"]')!)
+    fireEvent.click(screen.getByRole('button', { name: /^Share$/i }))
 
-    expect(screen.getByText(/Picked U/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Fill disabled/i })).toBeDisabled()
+    expect(await screen.findByLabelText('Share card')).toBeInTheDocument()
+    expect(screen.getByText(/#state=/i)).toBeInTheDocument()
+    expect(window.navigator.clipboard.writeText).toHaveBeenCalled()
+  })
+
+  it('shows manual turn controls on the main screen', () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Manual Solve/i }))
+
+    expect(screen.getByLabelText('Operation Controls')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^U$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^R$/i })).toBeInTheDocument()
   })
 
   it('switches the interface language from settings', () => {
@@ -197,7 +209,8 @@ describe('App', () => {
     fireEvent.click(screen.getByTitle('Settings'))
     fireEvent.change(screen.getByLabelText('Language'), { target: { value: 'zh' } })
 
-    expect(screen.getByRole('button', { name: /设置魔方/i })).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /求解/i }).length).toBeGreaterThan(0)
+    const nav = screen.getByLabelText('工作区')
+    expect(within(nav).getByRole('button', { name: /魔方求解/i })).toBeInTheDocument()
+    expect(within(nav).queryByRole('button', { name: /^求解$/i })).not.toBeInTheDocument()
   })
 })

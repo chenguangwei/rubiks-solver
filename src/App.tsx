@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties } from 'react'
 import { Cube3D } from './Cube3D'
-import { CubeNet } from './CubeNet'
-import { CENTER_INDICES, FACE_COLORS, FACES, SOLVED_STATE, validateState } from './cube'
+import { FACE_COLORS, FACES, SOLVED_STATE, validateState } from './cube'
 import type { Face } from './cube'
 import { LANGUAGE_OPTIONS, useI18n } from './i18n'
 import { loadImageToBuffer } from './imageLoader'
@@ -31,12 +30,12 @@ type PlaySpeed = 'slow' | 'normal' | 'fast'
 type SolveMode = 'fast' | 'tight'
 type TightInfo = { baseline: number; current: number }
 type WorkspaceTab = 'scan' | 'solve' | 'steps' | 'challenge' | 'replay' | 'profile'
+type SolveSurface = 'setup' | 'manual' | 'ai'
 type LearningStage = 'Cross' | 'F2L' | 'OLL' | 'PLL'
 type LearningSubTab = 'Overview' | 'Cases' | 'Moves' | 'Tips'
 type ChallengeMode = 'Speed' | 'No Hint' | 'Daily' | 'Random'
 type UtilityPanel = 'help' | 'settings' | null
 type ThemePreference = 'light' | 'focus'
-type EditMode = 'paint' | 'fill' | 'picker'
 type UserLevel = 'newcomer' | 'learner' | 'advanced' | 'player'
 
 const SPEED_MS: Record<PlaySpeed, number> = {
@@ -56,11 +55,8 @@ const TIGHT_HARD_TIMEOUT_MS = 9000
 const LS_MOVES_SAVED = 'rubiks-solver:moves-saved'
 const LS_TIGHT_COUNT = 'rubiks-solver:tight-count'
 
-const CENTER_INDEX_SET = new Set<number>(Object.values(CENTER_INDICES))
-
 const PRODUCT_TABS: readonly { id: WorkspaceTab; labelKey: string }[] = [
   { id: 'scan', labelKey: 'tabs.scan' },
-  { id: 'solve', labelKey: 'tabs.solve' },
   { id: 'steps', labelKey: 'tabs.steps' },
 ]
 
@@ -223,13 +219,11 @@ function App() {
   const [autoPlay, setAutoPlay] = useState(false)
   const [playSpeed, setPlaySpeed] = useState<PlaySpeed>('normal')
   const [shareFeedback, setShareFeedback] = useState<string | null>(null)
+  const [shareCard, setShareCard] = useState<{ url: string; copied: boolean } | null>(null)
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('scan')
-  const [selectedFace, setSelectedFace] = useState<Face>('F')
   const [utilityPanel, setUtilityPanel] = useState<UtilityPanel>(null)
   const [themePreference, setThemePreference] = useState<ThemePreference>('light')
-  const [editMode, setEditMode] = useState<EditMode>('paint')
   const [editMessage, setEditMessage] = useState<string | null>(null)
-  const [netRotation, setNetRotation] = useState(0)
   const [userLevel, setUserLevel] = useState<UserLevel>('newcomer')
   const [showNotation, setShowNotation] = useState(true)
   const [reducedMotion, setReducedMotion] = useState(false)
@@ -248,14 +242,13 @@ function App() {
   const [challengePb, setChallengePb] = useState(() => readNumber(LS_PRODUCT_PB) || 48)
   const [challengeStartedAt, setChallengeStartedAt] = useState<number | null>(null)
   const [replayIndex, setReplayIndex] = useState(0)
+  const [solveSurface, setSolveSurface] = useState<SolveSurface>('setup')
   const [savedTotals, setSavedTotals] = useState({
     movesSaved: readNumber(LS_MOVES_SAVED),
     tightCount: readNumber(LS_TIGHT_COUNT),
   })
   const [showScanner, setShowScanner] = useState(false)
 
-  const faceLabel = (face: Face) => t(`face.color.${face}`)
-  const userLevelCopy = USER_LEVELS.find((level) => level.id === userLevel)
   const describeMoveText = (move: ParsedMove) => {
     const face = t(`face.name.${move.face}`)
     if (move.turns === 1) return t('move.clockwise', { face })
@@ -310,6 +303,7 @@ function App() {
     setSolveStartedAt(null)
     setSolveFinishedAt(null)
     setReplayIndex(0)
+    setSolveSurface('setup')
     setFeedback(null)
     setEditMessage(null)
     setPracticeMessage(null)
@@ -366,69 +360,10 @@ function App() {
     moves && stepIndex < moves.length ? parseMove(moves[stepIndex]) : null
   const highlight = upcomingMove ? stickerIndicesForFace(upcomingMove.face) : []
 
-  function findPaintSwapIndex(chars: string[], index: number, targetFace: Face): number | null {
-    if (CENTER_INDEX_SET.has(index)) {
-      const targetCenter = CENTER_INDICES[targetFace]
-      return targetCenter !== index && chars[targetCenter] === targetFace ? targetCenter : null
-    }
-    const nonCenter = chars.findIndex(
-      (face, candidate) =>
-        candidate !== index && face === targetFace && !CENTER_INDEX_SET.has(candidate),
-    )
-    if (nonCenter !== -1) return nonCenter
-    const targetCenter = CENTER_INDICES[targetFace]
-    return targetCenter !== index && chars[targetCenter] === targetFace ? targetCenter : null
-  }
-
-  function commitStrictEdit(next: string, successMessage: string) {
-    const nextValidation = validateState(next)
-    if (!nextValidation.ok) {
-      setFeedback('error')
-      setEditMessage(`Edit blocked: ${nextValidation.reason}.`)
-      return
-    }
-    if (!isReachableState(next)) {
-      setFeedback('error')
-      setEditMessage('Edit blocked: that sticker change would create a cube a real 3x3 cannot reach.')
-      return
-    }
-    setStateAndClearMoves(next)
-    setFeedback('correct')
-    setEditMessage(successMessage)
-  }
-
-  function handleStickerChange(index: number, nextFace: Face) {
-    if (editMode === 'picker') {
-      setSelectedFace(state[index] as Face)
-      setEditMessage(`Picked ${state[index]} (${faceLabel(state[index] as Face)}).`)
-      setFeedback('correct')
-      return
-    }
-    const face = selectedFace ?? nextFace
-    if (editMode === 'fill') {
-      setFeedback('error')
-      setEditMessage('Fill is disabled because painting a whole face usually creates an impossible cube. Use Paint or Random Scramble.')
-      return
-    }
-    const current = state[index] as Face
-    if (current === face) {
-      setFeedback('correct')
-      setEditMessage(`Sticker is already ${face}.`)
-      return
-    }
-    const chars = state.split('')
-    const swapIndex = findPaintSwapIndex(chars, index, face)
-    if (swapIndex === null) {
-      setFeedback('error')
-      setEditMessage(`Edit blocked: no ${face} sticker is available to swap, so color counts would be invalid.`)
-      return
-    }
-    chars[index] = face
-    chars[swapIndex] = current
-    commitStrictEdit(chars.join(''), `Painted ${face}; swapped one ${current} sticker to keep a legal color count.`)
-  }
-
-  async function solveFastForState(requestState: string) {
+  async function solveFastForState(
+    requestState: string,
+    options: { stayOnCurrentTab?: boolean } = {},
+  ) {
     setSolveError(null)
     setMoves(null)
     setSolveMode(null)
@@ -443,7 +378,8 @@ function App() {
       if (stateRef.current !== requestState) return
       setMoves(result)
       setSolveMode('fast')
-      setActiveTab('solve')
+      setSolveSurface('ai')
+      if (!options.stayOnCurrentTab) setActiveTab('solve')
       const startedAt = nowMs()
       setCurrentTime(startedAt)
       setSolveStartedAt(startedAt)
@@ -459,7 +395,18 @@ function App() {
   }
 
   async function handleSolveFast() {
-    await solveFastForState(state)
+    await solveFastForState(state, { stayOnCurrentTab: activeTab === 'scan' })
+  }
+
+  function handleManualSolveStart() {
+    setSolveSurface('manual')
+    setActiveTab('scan')
+    setMoves(null)
+    setSolveMode(null)
+    setStepIndex(0)
+    setAutoPlay(false)
+    setEditMessage('Manual solve mode is active. Use the turn buttons to restore the cube.')
+    setFeedback('correct')
   }
 
   async function handleImageImport(event: ChangeEvent<HTMLInputElement>) {
@@ -496,7 +443,7 @@ function App() {
       setStateAndClearMoves(result.state)
       setFeedback('correct')
       setEditMessage('Image imported. Solving automatically.')
-      await solveFastForState(result.state)
+      await solveFastForState(result.state, { stayOnCurrentTab: true })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setParseError(message)
@@ -594,17 +541,21 @@ function App() {
     initSolver().then(() => setSolverStatus('ready'))
   }
 
-  async function handleShare() {
-    const url = shareUrl(state)
+  async function copyShareUrl(url: string) {
     try {
       await navigator.clipboard.writeText(url)
-      setShareFeedback('Link copied!')
-      if (activeTab === 'scan') setEditMessage('Share link copied.')
+      setShareCard({ url, copied: true })
+      setShareFeedback(null)
     } catch {
-      setShareFeedback(url)
-      if (activeTab === 'scan') setEditMessage('Share link is shown above.')
+      setShareCard({ url, copied: false })
     }
-    window.setTimeout(() => setShareFeedback(null), 2500)
+  }
+
+  async function handleShare() {
+    const url = shareUrl(state)
+    setShareCard({ url, copied: false })
+    await copyShareUrl(url)
+    if (activeTab === 'scan') setEditMessage(t('share.editReady'))
   }
 
   function manualSetStep(next: number) {
@@ -647,6 +598,8 @@ function App() {
     : validation.ok
       ? 42
       : 0
+  const currentMoveText = moves && stepIndex < moves.length ? moves[stepIndex] : null
+  const aiRouteVisible = !!moves && moves.length > 0 && !noHintChallengeActive
   const solveElapsedSeconds =
     solveStartedAt === null
       ? 0
@@ -654,12 +607,12 @@ function App() {
   function handleRandomScramble() {
     const next = randomState()
     setStateAndClearMoves(next)
-    setEditMessage('Random legal scramble loaded. Click Solve or practice with manual turns.')
+    setSolveSurface('setup')
+    setEditMessage('Random legal scramble loaded. Choose Manual Solve or AI Solve below.')
   }
 
   function handleResetScan() {
     setStateAndClearMoves(SOLVED_STATE)
-    setNetRotation(0)
   }
 
   function handleManualMove(face: Face) {
@@ -683,7 +636,7 @@ function App() {
       setSolveMode(null)
       setStepIndex(0)
       setManualMoves((items) => [...items, face])
-      setActiveTab('solve')
+      setSolveSurface('manual')
       setFeedback(validateState(next).ok ? 'correct' : 'error')
       if (practiceCaseId) {
         const caseData = LEARNING_CASES.find(c => c.case_id === practiceCaseId)
@@ -726,15 +679,6 @@ function App() {
   }
 
   function handleRotateView() {
-    if (activeTab === 'scan') {
-      setNetRotation((rotation) => {
-        const next = (rotation + 90) % 360
-        setEditMessage(`Net view rotated ${next}°. Sticker positions are unchanged.`)
-        setFeedback('correct')
-        return next
-      })
-      return
-    }
     setShareFeedback('3D preview is draggable.')
     window.setTimeout(() => setShareFeedback(null), 2500)
   }
@@ -762,11 +706,10 @@ function App() {
       setEditMessage('Six faces captured. Review the net: this sticker layout is not reachable on a real 3x3.')
       return
     }
-    setEditMessage('Six faces captured and checked. Solving automatically.')
+    setActiveTab('scan')
+    setSolveSurface('setup')
+    setEditMessage('Six faces captured and checked. Preview the cube, then choose Manual Solve or AI Solve.')
     setFeedback('correct')
-    if (solverStatus === 'ready' || isSolverReady()) {
-      void solveFastForState(nextState)
-    }
   }
 
   function recordReplayStep(delta: number) {
@@ -914,8 +857,21 @@ function App() {
         </section>
       )}
 
-      {(shareFeedback || parseError || solveError) && (
+      {(shareCard || shareFeedback || parseError || solveError) && (
         <section className="notice-strip">
+          {shareCard && (
+            <div className="share-card" aria-label={t('share.cardLabel')}>
+              <div className="share-card-copy">
+                <strong>{t('share.title')}</strong>
+                <span>{shareCard.copied ? t('share.copied') : t('share.ready')}</span>
+              </div>
+              <a href={shareCard.url}>{shareCard.url}</a>
+              <div className="share-card-actions">
+                <button onClick={() => copyShareUrl(shareCard.url)}>{t('share.copy')}</button>
+                <button onClick={() => setShareCard(null)}>{t('utility.close')}</button>
+              </div>
+            </div>
+          )}
           {shareFeedback && <p className="share-feedback">{shareFeedback}</p>}
           {parseError && <p className="error">{t('notice.imageParseError', { message: parseError })}</p>}
           {solveError && <p className="error">{solveError.message}</p>}
@@ -948,61 +904,6 @@ function App() {
         />
       ) : (
       <section className={`workspace workspace-${activeTab} ${showStepMode ? 'workspace-has-steps' : ''}`}>
-        {activeTab === 'scan' && (
-        <aside className="capture-panel panel">
-          <>
-            <div className="panel-heading">
-              <span className="step-badge">1</span>
-              <div>
-                <h2>{t('scan.heading')}</h2>
-                <p>{t('scan.description')}</p>
-              </div>
-            </div>
-            <div className="primary-cta-grid" aria-label={t('scan.primaryActions')}>
-              <button className="cta-card camera-cta" onClick={() => setShowScanner(true)}>
-                <span className="cta-icon" aria-hidden="true">▣</span>
-                <span className="cta-copy">
-                  <span>{t('scan.photoSolve')}</span>
-                  <small>{t('scan.photoSolveBody')}</small>
-                </span>
-                <span className="cta-affordance" aria-hidden="true">›</span>
-              </button>
-              <button className="cta-card scramble-cta" onClick={handleRandomScramble}>
-                <span className="cta-icon" aria-hidden="true">↻</span>
-                <span className="cta-copy">
-                  <span>{t('scan.randomScramble')}</span>
-                  <small>{t('scan.randomBody')}</small>
-                </span>
-                <span className="cta-affordance" aria-hidden="true">›</span>
-              </button>
-            </div>
-            <div className="setup-actions">
-              <label className="file-button">
-                {t('scan.importImage')}
-                <input
-                  className="visually-hidden"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageImport}
-                />
-              </label>
-              <button onClick={() => setActiveTab('steps')}>{t('scan.learnRestore')}</button>
-              <button onClick={() => setActiveTab('solve')}>{t('scan.manualTurns')}</button>
-              <button onClick={handleResetScan}>{t('scan.reset')}</button>
-            </div>
-            <div className="capture-progress">
-              <strong>{t('scan.reviewTitle')}</strong>
-              <span>{selectedFace} · {faceLabel(selectedFace)}</span>
-              <span>{validationMessage}</span>
-            </div>
-            <div className="tips-card compact">
-              <strong>{t('scan.path', { level: userLevelCopy ? t(userLevelCopy.labelKey) : '' })}</strong>
-              <p>{userLevelCopy ? t(userLevelCopy.descriptionKey) : ''}</p>
-            </div>
-          </>
-        </aside>
-        )}
-
         <section className="stage-panel panel">
           <div className="stage-toolbar">
             <div>
@@ -1014,6 +915,8 @@ function App() {
                       ? t('stage.solveCoach')
                       : activeTab === 'steps'
                         ? t('stage.operationGuide')
+                        : activeTab === 'scan'
+                          ? t('main.heading')
                         : showStepMode
                           ? t('stage.followSolution')
                           : t('stage.editNet')}
@@ -1023,11 +926,11 @@ function App() {
                       ? t('stage.solveDescription')
                       : activeTab === 'steps'
                         ? t('stage.stepsDescription')
+                        : activeTab === 'scan'
+                          ? t('main.description')
                         : showStepMode
                       ? t('stage.followDescription')
-                      : editMode === 'picker'
-                        ? t('stage.pickerDescription')
-                        : t('stage.paintDescription')}
+                      : t('stage.paintDescription')}
                   </p>
                 </div>
               </div>
@@ -1099,69 +1002,168 @@ function App() {
             <section className="guide-panel">
               <OperationManual
                 onPhotoSolve={() => setShowScanner(true)}
-                onRandomScramble={handleRandomScramble}
+                onRandomScramble={() => {
+                  handleRandomScramble()
+                  setActiveTab('scan')
+                }}
                 onSetCube={() => setActiveTab('scan')}
-                onSolve={() => setActiveTab('solve')}
               />
             </section>
           ) : (
-            <>
-              <div className="net-stage">
-                <CubeNet
-                  state={displayState}
-                  editable={!moves && !solveBusy}
-                  onChange={handleStickerChange}
-                  highlightIndices={highlight}
-                  className={`product-net ${netRotation % 180 === 0 ? '' : 'net-rotated'}`.trim()}
-                  style={{ '--net-rotation': `${netRotation}deg` } as CSSProperties}
-                />
+            <div className="main-control-screen">
+              <div className="main-cube-frame" aria-label={t('main.preview')}>
+                <Cube3D state={displayState} highlights={highlight.length > 0 ? highlight : undefined} />
+
+                <div className="corner-actions top-left">
+                  <button className="glass-action" onClick={() => setShowScanner(true)}>
+                    <span aria-hidden="true">▣</span>
+                    {t('scan.photoSolve')}
+                  </button>
+                </div>
+                <div className="corner-actions top-right">
+                  <button className="glass-action" onClick={handleRandomScramble}>
+                    <span aria-hidden="true">↻</span>
+                    {t('scan.randomScramble')}
+                  </button>
+                </div>
+                <div className="corner-actions bottom-left">
+                  <button className="glass-action" onClick={handleResetScan}>
+                    <span aria-hidden="true">⌂</span>
+                    {t('scan.reset')}
+                  </button>
+                </div>
+                <div className="corner-actions bottom-right">
+                  <label className="glass-action file-glass-action">
+                    <span aria-hidden="true">＋</span>
+                    {t('scan.importImage')}
+                    <input
+                      className="visually-hidden"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageImport}
+                    />
+                  </label>
+                </div>
+
+                {currentMoveText && (
+                  <div className="step-hud">
+                    <span>{t('main.nowPlaying')}</span>
+                    <strong>{currentMoveText}</strong>
+                    <small>{t('solution.moveOf', { current: stepIndex + 1, total: moves?.length ?? 0 })}</small>
+                  </div>
+                )}
+
+                {aiRouteVisible ? (
+                  <div className="floating-playback-dock" aria-label={t('main.playbackDock')}>
+                    <button
+                      onClick={() => manualSetStep(Math.max(0, stepIndex - 1))}
+                      disabled={stepIndex === 0}
+                    >
+                      ← {t('solution.prev')}
+                    </button>
+                    <button
+                      className="play-toggle primary"
+                      onClick={() => setAutoPlay((p) => !p)}
+                      disabled={stepIndex >= moves.length}
+                      aria-pressed={autoPlay}
+                    >
+                      {autoPlay ? `⏸ ${t('solution.pause')}` : `▶ ${t('solution.play')}`}
+                    </button>
+                    <button
+                      onClick={() => manualSetStep(Math.min(moves.length, stepIndex + 1))}
+                      disabled={stepIndex >= moves.length}
+                    >
+                      {t('solution.next')} →
+                    </button>
+                  </div>
+                ) : (
+                  <section className="solve-choice-dock" aria-label={t('main.solveDock')}>
+                    <button
+                      className={solveSurface === 'manual' ? 'active' : ''}
+                      onClick={handleManualSolveStart}
+                      disabled={!validationOk}
+                    >
+                      {t('main.manualSolve')}
+                    </button>
+                    <button
+                      className="primary"
+                      onClick={handleSolveFast}
+                      disabled={!canRequestSolve}
+                      title={
+                        !validation.ok
+                          ? validation.reason
+                          : !reachable
+                            ? t('solve.unreachableTitle')
+                          : t('solve.fastTitle')
+                      }
+                    >
+                      {solveBusy === 'fast' ? t('solve.solving') : t('main.aiSolve')}
+                    </button>
+                  </section>
+                )}
               </div>
 
-              {activeTab === 'scan' && (
-                <>
-                  <div className="paint-row" aria-label="Paint colors">
-                    {FACES.map((face) => (
-                      <button
-                        key={face}
-                        className={selectedFace === face ? 'active' : ''}
-                        style={{ '--face-color': FACE_COLORS[face] } as CSSProperties}
-                        onClick={() => setSelectedFace(face)}
-                        title={faceLabel(face)}
-                        aria-label={`Select ${face} ${faceLabel(face)}`}
-                      />
-                    ))}
+              {aiRouteVisible && (
+                <section className="main-route-panel" aria-label={t('main.route')}>
+                  <div className="route-title-row">
+                    <strong>{t('main.aiRoute')}</strong>
+                    <span>{t('algorithm.step', {
+                      current: Math.min(stepIndex + 1, moves?.length ?? 0),
+                      total: moves?.length ?? 0,
+                    })}</span>
                   </div>
-                  <p className="edit-status">
-                    {t('edit.modeStatus', {
-                      mode: t(`mode.${editMode}`),
-                      face: selectedFace,
-                      label: faceLabel(selectedFace),
-                      message: editMessage ? ` ${editMessage}` : '',
-                    })}
-                  </p>
-
-                  <div className="mode-row">
-                    {(['paint', 'fill', 'picker'] as const).map((mode) => (
-                      <button
-                        key={mode}
-                        className={editMode === mode ? 'active' : ''}
-                        disabled={mode === 'fill'}
-                        onClick={() => setEditMode(mode)}
-                        title={
-                          mode === 'fill'
-                            ? t('edit.fillTitle')
-                            : undefined
+                  <div className="compact-moves">
+                    {moves.map((move, index) => (
+                      <span
+                        key={`${move}-${index}`}
+                        className={
+                          index < stepIndex
+                            ? 'move done'
+                            : index === stepIndex
+                              ? 'move current'
+                              : 'move'
                         }
                       >
-                        {mode === 'fill' ? t('edit.fillDisabled') : t(`mode.${mode}`)}
+                        {move}
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {solveSurface === 'manual' && (
+                <section className="main-manual-panel" aria-label={t('controls.operation')}>
+                  <div className="operation-title-row">
+                    <h2>{t('main.manualSolve')}</h2>
+                    <span>{t('controls.moves', { count: manualMoves.length })}</span>
+                  </div>
+                  <div className="manual-controls">
+                    {FACES.map((face) => (
+                      <button key={face} onClick={() => handleManualMove(face)}>
+                        {face}
                       </button>
                     ))}
-                    <button onClick={handleResetScan}>{t('edit.clear')}</button>
                   </div>
-                  <HowToPlay className="how-to-inline" />
-                </>
+                  <div className="operation-meta">
+                    <span>{t('controls.timer', { seconds: solveElapsedSeconds })}</span>
+                    <span>{validationMessage}</span>
+                  </div>
+                </section>
               )}
-            </>
+
+              <section className="solve-status-strip">
+                <div>
+                  <strong>{t('solve.solve')}</strong>
+                  <span>{aiRouteVisible ? t('main.playbackReady') : editMessage ?? validationMessage}</span>
+                </div>
+                <div className="status-metrics" aria-label={t('main.solveSummary')}>
+                  <span>{validationMessage}</span>
+                  <span>{t('coach.progress', { percent: solvedPercent })}</span>
+                  <span>{t('coach.manualMoves', { count: manualMoves.length })}</span>
+                  <span>{t('coach.timer', { seconds: solveElapsedSeconds })}</span>
+                </div>
+              </section>
+            </div>
           )}
 
           {showStepMode && (
@@ -1178,7 +1180,7 @@ function App() {
 
         </section>
 
-        {activeTab !== 'steps' && (
+        {activeTab !== 'steps' && activeTab !== 'scan' && (
         <aside className="inspector-stack">
           {activeTab !== 'solve' && (
           <section className="preview-panel panel">
@@ -1343,12 +1345,10 @@ function OperationManual({
   onPhotoSolve,
   onRandomScramble,
   onSetCube,
-  onSolve,
 }: {
   onPhotoSolve: () => void
   onRandomScramble: () => void
   onSetCube: () => void
-  onSolve: () => void
 }) {
   const { t } = useI18n()
   return (
@@ -1362,7 +1362,7 @@ function OperationManual({
         <div className="tutorial-actions">
           <button className="primary" onClick={onPhotoSolve}>{t('scan.photoSolve')}</button>
           <button onClick={onRandomScramble}>{t('scan.randomScramble')}</button>
-          <button onClick={onSolve}>{t('scan.manualTurns')}</button>
+          <button onClick={onSetCube}>{t('guide.openSolver')}</button>
         </div>
       </section>
 
