@@ -18,29 +18,6 @@ import { applyMoves } from './solver'
 const INTERIOR_COLOR = '#161616'
 const CUBIE_SIZE = 0.94
 
-function blendHexColor(hex: string, target: string, amount: number) {
-  const normalized = hex.replace('#', '')
-  const targetNormalized = target.replace('#', '')
-  const sourceValue = parseInt(normalized, 16)
-  const targetValue = parseInt(targetNormalized, 16)
-  if (!Number.isFinite(sourceValue) || !Number.isFinite(targetValue)) return hex
-
-  const source = [
-    (sourceValue >> 16) & 255,
-    (sourceValue >> 8) & 255,
-    sourceValue & 255,
-  ]
-  const destination = [
-    (targetValue >> 16) & 255,
-    (targetValue >> 8) & 255,
-    targetValue & 255,
-  ]
-  const mixed = source.map((channel, index) =>
-    Math.round(channel + (destination[index] - channel) * amount),
-  )
-  return `#${mixed.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
-}
-
 const ALL_CUBIES: readonly Vec3[] = (() => {
   const out: Vec3[] = []
   for (const x of [-1, 0, 1] as const) {
@@ -58,7 +35,7 @@ const ALL_CUBIES: readonly Vec3[] = (() => {
  * Map a state string to a per-cubie array of 6 face colors. Materials are
  * indexed in three.js BoxGeometry order: +x, -x, +y, -y, +z, -z.
  */
-function colorsForState(state: string, highlights?: readonly number[]): Map<string, (string | null)[]> {
+function colorsForState(state: string): Map<string, (string | null)[]> {
   const out = new Map<string, (string | null)[]>()
   for (const [x, y, z] of ALL_CUBIES) {
     const key = cubieKey(x, y, z)
@@ -67,8 +44,6 @@ function colorsForState(state: string, highlights?: readonly number[]): Map<stri
     for (const s of stickers) {
       const letter = state[s.index] as Face
       const color = FACE_COLORS[letter] ?? '#888'
-      const isDimmed = highlights && !highlights.includes(s.index)
-      const finalColor = isDimmed ? blendHexColor(color, '#eef5ff', 0.38) : color
 
       const slot =
         s.normal[0] === 1
@@ -82,7 +57,7 @@ function colorsForState(state: string, highlights?: readonly number[]): Map<stri
                 : s.normal[2] === 1
                   ? 4
                   : 5
-      faces[slot] = finalColor
+      faces[slot] = color
     }
     out.set(key, faces)
   }
@@ -91,8 +66,8 @@ function colorsForState(state: string, highlights?: readonly number[]): Map<stri
 
 type Cubie = { key: string; position: Vec3; colors: (string | null)[] }
 
-function buildCubies(state: string, highlights?: readonly number[]): Cubie[] {
-  const colors = colorsForState(state, highlights)
+function buildCubies(state: string): Cubie[] {
+  const colors = colorsForState(state)
   return ALL_CUBIES.map(([x, y, z]) => ({
     key: cubieKey(x, y, z),
     position: [x, y, z],
@@ -147,8 +122,6 @@ type AnimatingTurn = {
   startState: string
   /** Animation duration in ms. */
   durationMs: number
-  /** Highlights for the turn animation */
-  highlights?: readonly number[]
 }
 
 function RotatingLayer({
@@ -179,7 +152,7 @@ function RotatingLayer({
 
   // While rotating, the layer cubies show the *start* state (not yet turned)
   // and the group's rotation visually performs the turn.
-  const cubies = buildCubies(turn.startState, turn.highlights).filter((c) =>
+  const cubies = buildCubies(turn.startState).filter((c) =>
     cubieOnFace(turn.face, c.position),
   )
 
@@ -192,7 +165,7 @@ function RotatingLayer({
   )
 }
 
-function Scene({ state, highlights }: { state: string, highlights?: readonly number[] }) {
+function Scene({ state }: { state: string }) {
   // Internal rendered state — diverges from `state` during a turn animation
   // so we can render the start state on the moving layer.
   const [rendered, setRendered] = useState(state)
@@ -212,7 +185,6 @@ function Scene({ state, highlights }: { state: string, highlights?: readonly num
           startState: rendered,
           endState: state,
           durationMs: parsed.turns === 2 ? 380 : 240,
-          highlights,
         })
         setStartedAt(performance.now())
       } else {
@@ -221,7 +193,7 @@ function Scene({ state, highlights }: { state: string, highlights?: readonly num
       }
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [state, rendered, turn, highlights])
+  }, [state, rendered, turn])
 
   function handleAnimationDone() {
     if (!turn) return
@@ -231,7 +203,7 @@ function Scene({ state, highlights }: { state: string, highlights?: readonly num
 
   // Static cubies = cubies NOT being animated this frame.
   const staticState = turn ? turn.startState : rendered
-  const allStatic = useMemo(() => buildCubies(staticState, highlights), [staticState, highlights])
+  const allStatic = useMemo(() => buildCubies(staticState), [staticState])
   const filteredStatic = turn
     ? allStatic.filter((c) => !cubieOnFace(turn.face, c.position))
     : allStatic
@@ -256,10 +228,10 @@ function Scene({ state, highlights }: { state: string, highlights?: readonly num
   )
 }
 
-export function Cube3D({ state, highlights }: { state: string, highlights?: readonly number[] }) {
+export function Cube3D({ state }: { state: string, highlights?: readonly number[] }) {
   return (
     <Canvas camera={{ position: [5.5, 5, 7], fov: 35 }} dpr={[1, 2]}>
-      <Scene state={state} highlights={highlights} />
+      <Scene state={state} />
     </Canvas>
   )
 }
