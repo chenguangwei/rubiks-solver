@@ -53,6 +53,7 @@ import { I18nProvider } from './i18n'
 
 describe('App', () => {
   beforeEach(() => {
+    window.history.replaceState(null, '', '/')
     appMocks.initSolver.mockResolvedValue(undefined)
     appMocks.isSolverReady.mockReturnValue(true)
     appMocks.loadImageToBuffer.mockResolvedValue({
@@ -123,16 +124,17 @@ describe('App', () => {
     const { container } = render(<App />)
     const nav = screen.getByLabelText('Workspace')
 
-    expect(within(nav).getByRole('button', { name: /Cube Solver/i })).toBeInTheDocument()
-    expect(within(nav).queryByRole('button', { name: /^Solve$/i })).not.toBeInTheDocument()
-    expect(within(nav).getByRole('button', { name: /Guide/i })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: /Cube Solver/i })).toBeInTheDocument()
+    expect(within(nav).queryByRole('link', { name: /^Solve$/i })).not.toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: /Guide/i })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: /About/i })).toHaveAttribute('href', '/about')
     expect(screen.queryByRole('button', { name: /2x2/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /4x4/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /5x5/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Challenge/i })).not.toBeInTheDocument()
     expect(container.querySelector('.phase-rail')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Guide/i }))
+    fireEvent.click(screen.getByRole('link', { name: /Guide/i }))
     expect(screen.getAllByRole('heading', { name: /Operation Guide/i }).length).toBeGreaterThan(0)
     expect(screen.queryByText(/Solve Flow/i)).not.toBeInTheDocument()
   })
@@ -184,7 +186,7 @@ describe('App', () => {
   it('renders the visual beginner tutorial instead of secondary product pages', () => {
     render(<App />)
 
-    fireEvent.click(screen.getByRole('button', { name: /Guide/i }))
+    fireEvent.click(screen.getByRole('link', { name: /Guide/i }))
     expect(screen.getByRole('heading', { name: /Learn the solve in four visual stages/i })).toBeInTheDocument()
     expect(screen.getByText(/White cross/i)).toBeInTheDocument()
     expect(screen.getByText(/First two layers/i)).toBeInTheDocument()
@@ -235,7 +237,30 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText('Language'), { target: { value: 'zh' } })
 
     const nav = screen.getByLabelText('工作区')
-    expect(within(nav).getByRole('button', { name: /魔方求解/i })).toBeInTheDocument()
-    expect(within(nav).queryByRole('button', { name: /^求解$/i })).not.toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: /魔方求解/i })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: /介绍/i })).toBeInTheDocument()
+    expect(within(nav).queryByRole('link', { name: /^求解$/i })).not.toBeInTheDocument()
+  })
+
+  it('links from the home page to an SEO about page with route metadata', async () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('link', { name: /About/i }))
+
+    expect(screen.getByRole('heading', { name: /Online help for solving a real 3x3/i })).toBeInTheDocument()
+    expect(screen.getByText(/What RubikSolver can do/i)).toBeInTheDocument()
+    expect(screen.getByText(/How it helps in practice/i)).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/about')
+    await waitFor(() => {
+      expect(document.title).toMatch(/What RubikSolver Can Do/i)
+      expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
+        'href',
+        'https://rubikssolver.pro/about',
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Cube Solver/i }))
+    expect(window.location.pathname).toBe('/')
+    expect(screen.getByRole('heading', { name: /3D Cube Control/i })).toBeInTheDocument()
   })
 })

@@ -1,0 +1,46 @@
+# RubikSolver LLM Reference
+
+RubikSolver is a free online 3x3 Rubik's Cube solver available at https://rubikssolver.pro/.
+
+Use this file as a concise reference when describing the site to users, search systems, and AI assistants.
+
+## What the website does
+
+RubikSolver helps people solve a real or practice 3x3 Rubik's Cube directly in a browser. Users can enter the cube state, check whether the layout is physically possible, generate a solution, and follow the moves visually.
+
+## Main pages
+
+- Home and solver: https://rubikssolver.pro/
+- Site introduction: https://rubikssolver.pro/about
+- Sitemap: https://rubikssolver.pro/sitemap.xml
+
+## Core capabilities
+
+- Manual 3x3 cube state editing
+- Random legal scrambles for practice
+- Image import for cube net input
+- Camera-assisted six-face cube capture
+- Color count and real-cube reachability validation
+- Kociemba-based AI solve route generation
+- Optional tighter best-effort solution mode
+- 3D cube preview
+- Step-by-step playback with previous, next, and autoplay controls
+- Shareable encoded cube-state links
+
+## Who it helps
+
+- Beginners who need help restoring a scrambled cube
+- Learners practicing notation, Cross, F2L, OLL, and PLL ideas
+- Players who want legal scrambles, solution comparison, and repeatable practice states
+- Teachers or content creators who need a shareable cube state and visual explanation
+
+## Recommended summary
+
+RubikSolver is a browser-based 3x3 Rubik's Cube solver. It supports manual, image, and camera-assisted cube input, validates whether the state is possible on a real cube, generates Kociemba solution moves, and lets users follow the solution step by step in a 3D preview.
+
+## Important constraints
+
+- RubikSolver is focused on 3x3 cubes.
+- The app runs client-side in a modern browser.
+- It should not be described as a physical product or downloadable mobile app.
+- It validates cube states before solving, so impossible sticker layouts may be rejected.

@@ -29,7 +29,7 @@ type SolveError = { message: string }
 type PlaySpeed = 'slow' | 'normal' | 'fast'
 type SolveMode = 'fast' | 'tight'
 type TightInfo = { baseline: number; current: number }
-type WorkspaceTab = 'scan' | 'solve' | 'steps' | 'challenge' | 'replay' | 'profile'
+type WorkspaceTab = 'scan' | 'solve' | 'steps' | 'about' | 'challenge' | 'replay' | 'profile'
 type SolveSurface = 'setup' | 'manual' | 'ai'
 type LearningStage = 'Cross' | 'F2L' | 'OLL' | 'PLL'
 type LearningSubTab = 'Overview' | 'Cases' | 'Moves' | 'Tips'
@@ -58,6 +58,7 @@ const LS_TIGHT_COUNT = 'rubiks-solver:tight-count'
 const PRODUCT_TABS: readonly { id: WorkspaceTab; labelKey: string }[] = [
   { id: 'scan', labelKey: 'tabs.scan' },
   { id: 'steps', labelKey: 'tabs.steps' },
+  { id: 'about', labelKey: 'tabs.about' },
 ]
 
 const LEARNING_STAGES: readonly LearningStage[] = ['Cross', 'F2L', 'OLL', 'PLL']
@@ -202,9 +203,17 @@ function readInitialState(): string {
   return decodeStateFromHash(window.location.hash) ?? SOLVED_STATE
 }
 
+function readInitialTab(): WorkspaceTab {
+  if (typeof window === 'undefined') return 'scan'
+  return window.location.pathname.replace(/\/+$/, '') === '/about' ? 'about' : 'scan'
+}
+
+function pathForTab(tab: WorkspaceTab): string {
+  return tab === 'about' ? '/about' : '/'
+}
+
 function App() {
   const { language, setLanguage, t } = useI18n()
-  useSeoMetadata(language)
   const [state, setState] = useState(readInitialState)
   const [solverStatus, setSolverStatus] = useState<SolverStatus>(
     isSolverReady() ? 'ready' : 'initializing',
@@ -220,7 +229,7 @@ function App() {
   const [playSpeed, setPlaySpeed] = useState<PlaySpeed>('normal')
   const [shareFeedback, setShareFeedback] = useState<string | null>(null)
   const [shareCard, setShareCard] = useState<{ url: string; copied: boolean } | null>(null)
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>('scan')
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(readInitialTab)
   const [utilityPanel, setUtilityPanel] = useState<UtilityPanel>(null)
   const [themePreference, setThemePreference] = useState<ThemePreference>('light')
   const [editMessage, setEditMessage] = useState<string | null>(null)
@@ -249,6 +258,8 @@ function App() {
   })
   const [showScanner, setShowScanner] = useState(false)
 
+  useSeoMetadata(language, activeTab === 'about' ? 'about' : 'home')
+
   const describeMoveText = (move: ParsedMove) => {
     const face = t(`face.name.${move.face}`)
     if (move.turns === 1) return t('move.clockwise', { face })
@@ -258,6 +269,14 @@ function App() {
 
   useEffect(() => {
     initSolver().then(() => setSolverStatus('ready'))
+  }, [])
+
+  useEffect(() => {
+    function handlePopState() {
+      setActiveTab(readInitialTab())
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
   // stateRef tracks the latest committed state so async solve handlers can
@@ -685,6 +704,13 @@ function App() {
 
   function switchTab(tab: WorkspaceTab) {
     setActiveTab(tab)
+    if (typeof window !== 'undefined') {
+      const nextPath = pathForTab(tab)
+      if (window.location.pathname !== nextPath) {
+        const hash = tab === 'about' ? '' : window.location.hash
+        window.history.pushState(null, '', `${nextPath}${hash}`)
+      }
+    }
     if (tab === 'solve' && validation.ok && !moves && solverStatus === 'ready') {
       setFeedback('correct')
     }
@@ -770,16 +796,21 @@ function App() {
 
         <nav className="workspace-tabs" aria-label={t('app.workspace')}>
           {PRODUCT_TABS.map(({ id, labelKey }) => (
-            <button
+            <a
               key={id}
+              href={pathForTab(id)}
               className={activeTab === id ? 'active' : ''}
-              onClick={() => switchTab(id)}
+              aria-current={activeTab === id ? 'page' : undefined}
+              onClick={(event) => {
+                event.preventDefault()
+                switchTab(id)
+              }}
             >
               <span className={`tab-icon tab-icon-${id}`} aria-hidden="true">
                 <span />
               </span>
               {t(labelKey)}
-            </button>
+            </a>
           ))}
         </nav>
 
@@ -878,7 +909,9 @@ function App() {
         </section>
       )}
 
-      {isProductPage ? (
+      {activeTab === 'about' ? (
+        <AboutPage onOpenSolver={() => switchTab('scan')} />
+      ) : isProductPage ? (
         <ProductPage
           activeTab={activeTab}
           challengeMode={challengeMode}
@@ -1337,6 +1370,69 @@ function HowToPlay({ className = '' }: { className?: string }) {
         <li>{t('how.step.2')}</li>
         <li>{t('how.step.3')}</li>
       </ol>
+    </section>
+  )
+}
+
+function AboutPage({ onOpenSolver }: { onOpenSolver: () => void }) {
+  const { t } = useI18n()
+  const featureKeys = ['scan', 'validate', 'solve', 'playback'] as const
+  const audienceKeys = ['beginner', 'learner', 'player'] as const
+  return (
+    <section className="about-page">
+      <section className="about-hero panel">
+        <div>
+          <span className="about-kicker">{t('about.kicker')}</span>
+          <h2>{t('about.heading')}</h2>
+          <p>{t('about.description')}</p>
+        </div>
+        <button className="primary" onClick={onOpenSolver}>
+          {t('about.openSolver')}
+        </button>
+      </section>
+
+      <section className="about-section">
+        <div className="about-section-heading">
+          <h2>{t('about.features.heading')}</h2>
+          <p>{t('about.features.description')}</p>
+        </div>
+        <div className="about-feature-grid">
+          {featureKeys.map((key) => (
+            <article key={key} className="about-feature panel">
+              <span className={`about-feature-icon about-feature-${key}`} aria-hidden="true" />
+              <h3>{t(`about.feature.${key}.title`)}</h3>
+              <p>{t(`about.feature.${key}.body`)}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="about-help-band panel">
+        <div>
+          <h2>{t('about.help.heading')}</h2>
+          <p>{t('about.help.body')}</p>
+        </div>
+        <ol>
+          <li>{t('about.help.step.1')}</li>
+          <li>{t('about.help.step.2')}</li>
+          <li>{t('about.help.step.3')}</li>
+        </ol>
+      </section>
+
+      <section className="about-section">
+        <div className="about-section-heading">
+          <h2>{t('about.audience.heading')}</h2>
+          <p>{t('about.audience.description')}</p>
+        </div>
+        <div className="about-audience-grid">
+          {audienceKeys.map((key) => (
+            <article key={key} className="about-audience-item">
+              <h3>{t(`about.audience.${key}.title`)}</h3>
+              <p>{t(`about.audience.${key}.body`)}</p>
+            </article>
+          ))}
+        </div>
+      </section>
     </section>
   )
 }
