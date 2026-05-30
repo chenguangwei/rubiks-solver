@@ -3,15 +3,23 @@ import type { CSSProperties } from 'react'
 import { FACE_COLORS, FACES } from './cube'
 import type { Face } from './cube'
 import { useI18n } from './i18n'
-import { classifyScannedFaces, parseFace, sampleFace } from './parser'
-import type { RgbSample } from './parser'
+import {
+  classifyScannedFaces,
+  classifyScannedFaces2x2,
+  classifyScannedFaces4x4,
+  classifyScannedFaces5x5,
+  parseFace,
+  sampleFace,
+} from './parser'
+import type { ParseResult, RgbSample } from './parser'
 
 interface CameraScannerProps {
   onComplete: (state: string) => void
   onCancel: () => void
+  gridSize?: 2 | 3 | 4 | 5
 }
 
-export default function CameraScanner({ onComplete, onCancel }: CameraScannerProps) {
+export default function CameraScanner({ onComplete, onCancel, gridSize = 3 }: CameraScannerProps) {
   const { t } = useI18n()
   const videoRef = useRef<HTMLVideoElement>(null)
   const [error, setError] = useState<string | null>(null)
@@ -72,8 +80,8 @@ export default function CameraScanner({ onComplete, onCancel }: CameraScannerPro
       data: imageData.data,
     }
     
-    const samples = sampleFace(imgBuffer)
-    const colors = parseFace(imgBuffer)
+    const samples = sampleFace(imgBuffer, { gridSize })
+    const colors = parseFace(imgBuffer, { gridSize })
     const newScanned = { ...scannedFaces, [targetFace]: colors }
     const newSamples = { ...sampledFaces, [targetFace]: samples }
     setScannedFaces(newScanned)
@@ -82,7 +90,16 @@ export default function CameraScanner({ onComplete, onCancel }: CameraScannerPro
     if (currentFaceIndex < 5) {
       setCurrentFaceIndex(currentFaceIndex + 1)
     } else {
-      const result = classifyScannedFaces(newSamples)
+      let result: ParseResult
+      if (gridSize === 2) {
+        result = classifyScannedFaces2x2(newSamples)
+      } else if (gridSize === 4) {
+        result = classifyScannedFaces4x4(newSamples)
+      } else if (gridSize === 5) {
+        result = classifyScannedFaces5x5(newSamples)
+      } else {
+        result = classifyScannedFaces(newSamples)
+      }
       if (result.ok) {
         onComplete(result.state)
       } else {
@@ -138,7 +155,11 @@ export default function CameraScanner({ onComplete, onCancel }: CameraScannerPro
           >
             {scannedFaces[face] ? (
               <>
-                <span className="face-thumb-grid" aria-hidden="true">
+                <span
+                  className="face-thumb-grid"
+                  aria-hidden="true"
+                  style={{ '--grid-size': gridSize } as CSSProperties}
+                >
                   {scannedFaces[face]!.map((sticker, stickerIndex) => (
                     <span
                       key={`${face}-${stickerIndex}`}
@@ -171,8 +192,8 @@ export default function CameraScanner({ onComplete, onCancel }: CameraScannerPro
           onCanPlay={() => setVideoReady(true)}
         />
         <div className="ar-overlay">
-          <div className="ar-grid">
-             {Array.from({length: 9}).map((_, i) => <div key={i} className="ar-cell" />)}
+          <div className="ar-grid" style={{ '--grid-size': gridSize } as CSSProperties}>
+             {Array.from({ length: gridSize * gridSize }).map((_, i) => <div key={i} className="ar-cell" />)}
           </div>
         </div>
       </div>

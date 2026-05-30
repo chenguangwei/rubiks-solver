@@ -43,6 +43,11 @@ export type ParseOptions = {
    * image corners.
    */
   backgroundTolerance?: number
+  /**
+   * Face grid size for single-face sampling. 3 for a standard cube face, 2 for
+   * a 2x2 mini cube face, 4 for a 4x4 face, 5 for a 5x5 face. Default 3.
+   */
+  gridSize?: 2 | 3 | 4 | 5
 }
 
 const HEX_RE = /^#([0-9a-f]{6})$/i
@@ -321,11 +326,12 @@ export function parseFace(img: ImageBuffer, options: ParseOptions = {}): Face[] 
  */
 export function sampleFace(img: ImageBuffer, options: ParseOptions = {}): RgbSample[] {
   const sampleHalfWidth = options.sampleHalfWidth ?? 4
-  const stickerW = img.width / 3
-  const stickerH = img.height / 3
+  const gridSize = options.gridSize ?? 3
+  const stickerW = img.width / gridSize
+  const stickerH = img.height / gridSize
   const samples: RgbSample[] = []
-  for (let row = 0; row < 3; row++) {
-    for (let col = 0; col < 3; col++) {
+  for (let row = 0; row < gridSize; row++) {
+    for (let col = 0; col < gridSize; col++) {
       const cx = Math.floor((col + 0.5) * stickerW)
       const cy = Math.floor((row + 0.5) * stickerH)
       samples.push(sampleAverage(img, cx, cy, sampleHalfWidth))
@@ -356,6 +362,56 @@ export function classifyScannedFaces(
       const closestCenter = nearestFace(rgbToLab(sample), centerLab)
       stateChars.push(centerPosToWcaFace[closestCenter])
       flatSamples[stateChars.length - 1] = sample
+    }
+  }
+
+  return { ok: true, state: stateChars.join(''), samples: flatSamples }
+}
+
+export function classifyScannedFaces2x2(
+  samplesByFace: Partial<Record<Face, readonly RgbSample[]>>,
+): ParseResult {
+  return classifyFixedPaletteScannedFaces(samplesByFace, 2)
+}
+
+export function classifyScannedFaces4x4(
+  samplesByFace: Partial<Record<Face, readonly RgbSample[]>>,
+): ParseResult {
+  return classifyFixedPaletteScannedFaces(samplesByFace, 4)
+}
+
+export function classifyScannedFaces5x5(
+  samplesByFace: Partial<Record<Face, readonly RgbSample[]>>,
+): ParseResult {
+  return classifyFixedPaletteScannedFaces(samplesByFace, 5)
+}
+
+function classifyFixedPaletteScannedFaces(
+  samplesByFace: Partial<Record<Face, readonly RgbSample[]>>,
+  gridSize: 2 | 4 | 5,
+): ParseResult {
+  const wcaLab = wcaLabByFace()
+  const stateChars: string[] = []
+  const flatSamples: Record<number, RgbSample> = {}
+  const counts: Record<Face, number> = { U: 0, R: 0, F: 0, D: 0, L: 0, B: 0 }
+  const stickerCount = gridSize * gridSize
+
+  for (const face of FACES) {
+    const samples = samplesByFace[face]
+    if (!samples || samples.length !== stickerCount) {
+      return { ok: false, reason: `Missing ${stickerCount} samples for ${face} face` }
+    }
+    for (const sample of samples) {
+      const classified = nearestFace(rgbToLab(sample), wcaLab)
+      stateChars.push(classified)
+      flatSamples[stateChars.length - 1] = sample
+      counts[classified] += 1
+    }
+  }
+
+  for (const face of FACES) {
+    if (counts[face] !== stickerCount) {
+      return { ok: false, reason: `Expected ${stickerCount} ${face} stickers, got ${counts[face]}` }
     }
   }
 

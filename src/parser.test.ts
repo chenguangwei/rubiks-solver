@@ -1,6 +1,11 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { FACE_COLORS, FACES, SOLVED_STATE } from './cube'
-import { classifyScannedFaces, parseNet } from './parser'
+import {
+  classifyScannedFaces,
+  classifyScannedFaces4x4,
+  classifyScannedFaces5x5,
+  parseNet,
+} from './parser'
 import type { Face } from './cube'
 import type { RgbSample } from './parser'
 import { renderState } from './render'
@@ -106,5 +111,49 @@ describe('classifyScannedFaces', () => {
 
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.state).toBe(expected)
+  })
+
+  it('classifies 4x4 camera faces and validates 16 stickers per color', () => {
+    const samplesByFace: Partial<Record<Face, RgbSample[]>> = {}
+    for (const face of FACES) {
+      samplesByFace[face] = Array.from({ length: 16 }, () => hexToRgb(FACE_COLORS[face]))
+    }
+
+    const result = classifyScannedFaces4x4(samplesByFace)
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.state).toHaveLength(96)
+      expect(result.state).toBe(
+        'U'.repeat(16) +
+          'R'.repeat(16) +
+          'F'.repeat(16) +
+          'D'.repeat(16) +
+          'L'.repeat(16) +
+          'B'.repeat(16),
+      )
+    }
+  })
+
+  it('classifies 5x5 camera faces and validates 25 stickers per color', () => {
+    const samplesByFace: Partial<Record<Face, RgbSample[]>> = {}
+    for (const face of FACES) {
+      samplesByFace[face] = Array.from({ length: 25 }, () => hexToRgb(FACE_COLORS[face]))
+    }
+
+    const result = classifyScannedFaces5x5(samplesByFace)
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.state).toHaveLength(150)
+      expect(result.state).toBe(
+        'U'.repeat(25) +
+          'R'.repeat(25) +
+          'F'.repeat(25) +
+          'D'.repeat(25) +
+          'L'.repeat(25) +
+          'B'.repeat(25),
+      )
+    }
   })
 })

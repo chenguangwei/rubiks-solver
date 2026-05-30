@@ -10,6 +10,14 @@ import type { ParsedMove } from './moves'
 import { parseNet } from './parser'
 import { useSeoMetadata } from './seo'
 import { decodeStateFromHash, shareUrl } from './share'
+import { MiniCubeSolverPage } from './MiniCubeSolverPage'
+import { Cube444SolverPage } from './Cube444SolverPage'
+import { Cube555SolverPage } from './Cube555SolverPage'
+import { PatternPuzzleSolverPage } from './PatternPuzzleSolverPage'
+import { getPuzzleDefinition, LIVE_PUZZLE_IDS } from './puzzles/catalog'
+import { pyraminxAdapter } from './puzzles/pyraminx'
+import { skewbAdapter } from './puzzles/skewb'
+import type { PuzzleId } from './puzzles/types'
 import {
   applyMoves,
   initSolver,
@@ -29,7 +37,19 @@ type SolveError = { message: string }
 type PlaySpeed = 'slow' | 'normal' | 'fast'
 type SolveMode = 'fast' | 'tight'
 type TightInfo = { baseline: number; current: number }
-type WorkspaceTab = 'scan' | 'solve' | 'steps' | 'about' | 'challenge' | 'replay' | 'profile'
+type WorkspaceTab =
+  | 'scan'
+  | 'mini2x2'
+  | 'revenge4x4'
+  | 'professor5x5'
+  | 'pyraminx'
+  | 'skewb'
+  | 'solve'
+  | 'steps'
+  | 'about'
+  | 'challenge'
+  | 'replay'
+  | 'profile'
 type SolveSurface = 'setup' | 'manual' | 'ai'
 type LearningStage = 'Cross' | 'F2L' | 'OLL' | 'PLL'
 type LearningSubTab = 'Overview' | 'Cases' | 'Moves' | 'Tips'
@@ -55,11 +75,56 @@ const TIGHT_HARD_TIMEOUT_MS = 9000
 const LS_MOVES_SAVED = 'rubiks-solver:moves-saved'
 const LS_TIGHT_COUNT = 'rubiks-solver:tight-count'
 
-const PRODUCT_TABS: readonly { id: WorkspaceTab; labelKey: string }[] = [
+type SolverWorkspaceTab = 'scan' | 'mini2x2' | 'revenge4x4' | 'professor5x5' | 'pyraminx' | 'skewb'
+
+const PUZZLE_ID_BY_SOLVER_TAB: Record<SolverWorkspaceTab, PuzzleId> = {
+  scan: '333',
+  mini2x2: '222',
+  revenge4x4: '444',
+  professor5x5: '555',
+  pyraminx: 'pyraminx',
+  skewb: 'skewb',
+}
+
+const SOLVER_TAB_BY_PUZZLE_ID: Record<PuzzleId, SolverWorkspaceTab> = {
+  '222': 'mini2x2',
+  '333': 'scan',
+  '444': 'revenge4x4',
+  '555': 'professor5x5',
+  pyraminx: 'pyraminx',
+  skewb: 'skewb',
+}
+
+const PRIMARY_TABS: readonly { id: WorkspaceTab; labelKey: string }[] = [
   { id: 'scan', labelKey: 'tabs.scan' },
   { id: 'steps', labelKey: 'tabs.steps' },
   { id: 'about', labelKey: 'tabs.about' },
 ]
+
+const SOLVER_NAV_ITEMS: readonly {
+  id: SolverWorkspaceTab
+  labelKey: string
+  group: 'cube' | 'wca'
+}[] = [
+  { id: 'mini2x2', labelKey: 'tabs.2x2', group: 'cube' },
+  { id: 'revenge4x4', labelKey: 'tabs.4x4', group: 'cube' },
+  { id: 'professor5x5', labelKey: 'tabs.5x5', group: 'cube' },
+  { id: 'pyraminx', labelKey: 'tabs.pyraminx', group: 'wca' },
+  { id: 'skewb', labelKey: 'tabs.skewb', group: 'wca' },
+]
+
+const GUIDE_PUZZLE_IDS = LIVE_PUZZLE_IDS
+const GUIDE_STEP_IDS = ['setup', 'entry', 'solve', 'playback'] as const
+const GUIDE_FACT_IDS = ['scope', 'entry', 'notation'] as const
+const ABOUT_PUZZLE_FACT_IDS = ['entry', 'solve', 'playback'] as const
+
+function isSolverWorkspaceTab(tab: WorkspaceTab): tab is SolverWorkspaceTab {
+  return Object.prototype.hasOwnProperty.call(PUZZLE_ID_BY_SOLVER_TAB, tab)
+}
+
+function puzzleIdForTab(tab: WorkspaceTab): PuzzleId | null {
+  return isSolverWorkspaceTab(tab) ? PUZZLE_ID_BY_SOLVER_TAB[tab] : null
+}
 
 const LEARNING_STAGES: readonly LearningStage[] = ['Cross', 'F2L', 'OLL', 'PLL']
 const LEARNING_SUBTABS: readonly LearningSubTab[] = ['Overview', 'Cases', 'Moves', 'Tips']
@@ -205,11 +270,22 @@ function readInitialState(): string {
 
 function readInitialTab(): WorkspaceTab {
   if (typeof window === 'undefined') return 'scan'
-  return window.location.pathname.replace(/\/+$/, '') === '/about' ? 'about' : 'scan'
+  const pathname = window.location.pathname.replace(/\/+$/, '')
+  if (pathname === '/about') return 'about'
+  const matchedPuzzle = (Object.keys(SOLVER_TAB_BY_PUZZLE_ID) as PuzzleId[]).find((id) => {
+    const route = getPuzzleDefinition(id).route.replace(/\/+$/, '')
+    return route === pathname
+  })
+  if (matchedPuzzle) return SOLVER_TAB_BY_PUZZLE_ID[matchedPuzzle]
+  return 'scan'
 }
 
 function pathForTab(tab: WorkspaceTab): string {
-  return tab === 'about' ? '/about' : '/'
+  if (tab === 'about') return '/about'
+  if (tab in PUZZLE_ID_BY_SOLVER_TAB) {
+    return getPuzzleDefinition(PUZZLE_ID_BY_SOLVER_TAB[tab as SolverWorkspaceTab]).route
+  }
+  return '/'
 }
 
 function App() {
@@ -230,7 +306,9 @@ function App() {
   const [shareFeedback, setShareFeedback] = useState<string | null>(null)
   const [shareCard, setShareCard] = useState<{ url: string; copied: boolean } | null>(null)
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(readInitialTab)
+  const [guidePuzzleId, setGuidePuzzleId] = useState<PuzzleId>(() => puzzleIdForTab(readInitialTab()) ?? '333')
   const [utilityPanel, setUtilityPanel] = useState<UtilityPanel>(null)
+  const [solverMenuOpen, setSolverMenuOpen] = useState(false)
   const [themePreference, setThemePreference] = useState<ThemePreference>('light')
   const [editMessage, setEditMessage] = useState<string | null>(null)
   const [userLevel, setUserLevel] = useState<UserLevel>('newcomer')
@@ -258,7 +336,9 @@ function App() {
   })
   const [showScanner, setShowScanner] = useState(false)
 
-  useSeoMetadata(language, activeTab === 'about' ? 'about' : 'home')
+  const activePuzzleId = puzzleIdForTab(activeTab) ?? guidePuzzleId
+
+  useSeoMetadata(language, activeTab === 'about' ? 'about' : activePuzzleId)
 
   const describeMoveText = (move: ParsedMove) => {
     const face = t(`face.name.${move.face}`)
@@ -273,7 +353,10 @@ function App() {
 
   useEffect(() => {
     function handlePopState() {
-      setActiveTab(readInitialTab())
+      const nextTab = readInitialTab()
+      setActiveTab(nextTab)
+      const nextPuzzleId = puzzleIdForTab(nextTab)
+      if (nextPuzzleId) setGuidePuzzleId(nextPuzzleId)
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
@@ -703,7 +786,11 @@ function App() {
   }
 
   function switchTab(tab: WorkspaceTab) {
+    const nextPuzzleId = puzzleIdForTab(tab)
+    if (nextPuzzleId) setGuidePuzzleId(nextPuzzleId)
+    if (tab === 'steps') setGuidePuzzleId(activePuzzleId)
     setActiveTab(tab)
+    setSolverMenuOpen(false)
     if (typeof window !== 'undefined') {
       const nextPath = pathForTab(tab)
       if (window.location.pathname !== nextPath) {
@@ -713,6 +800,18 @@ function App() {
     }
     if (tab === 'solve' && validation.ok && !moves && solverStatus === 'ready') {
       setFeedback('correct')
+    }
+  }
+
+  function openGuideForPuzzle(puzzleId: PuzzleId) {
+    setGuidePuzzleId(puzzleId)
+    setActiveTab('steps')
+    setSolverMenuOpen(false)
+    if (typeof window !== 'undefined') {
+      const nextPath = pathForTab('steps')
+      if (window.location.pathname !== nextPath) {
+        window.history.pushState(null, '', `${nextPath}${window.location.hash}`)
+      }
     }
   }
 
@@ -795,7 +894,74 @@ function App() {
         </div>
 
         <nav className="workspace-tabs" aria-label={t('app.workspace')}>
-          {PRODUCT_TABS.map(({ id, labelKey }) => (
+          {PRIMARY_TABS.slice(0, 1).map(({ id, labelKey }) => (
+            <a
+              key={id}
+              href={pathForTab(id)}
+              className={activeTab === id ? 'active' : ''}
+              aria-current={activeTab === id ? 'page' : undefined}
+              onClick={(event) => {
+                event.preventDefault()
+                switchTab(id)
+              }}
+            >
+              <span className={`tab-icon tab-icon-${id}`} aria-hidden="true">
+                <span />
+              </span>
+              {t(labelKey)}
+            </a>
+          ))}
+          <div className="solver-menu">
+            <button
+              type="button"
+              className="solver-menu-trigger"
+              aria-haspopup="true"
+              aria-expanded={solverMenuOpen}
+              aria-controls="mobile-solver-tray"
+              onClick={() => setSolverMenuOpen((open) => !open)}
+            >
+              {t('tabs.allSolvers')}
+            </button>
+            <div className="solver-menu-panel" aria-label="Solver list">
+              <span className="solver-menu-group">{t('tabs.group.cubes')}</span>
+              {SOLVER_NAV_ITEMS.filter((item) => item.group === 'cube').map(({ id, labelKey }) => (
+                <a
+                  key={id}
+                  href={pathForTab(id)}
+                  className={activeTab === id ? 'active' : ''}
+                  aria-current={activeTab === id ? 'page' : undefined}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    switchTab(id)
+                  }}
+                >
+                  <span className={`tab-icon tab-icon-${id}`} aria-hidden="true">
+                    <span />
+                  </span>
+                  {t(labelKey)}
+                </a>
+              ))}
+              <span className="solver-menu-group">{t('tabs.group.other')}</span>
+              {SOLVER_NAV_ITEMS.filter((item) => item.group === 'wca').map(({ id, labelKey }) => (
+                <a
+                  key={id}
+                  href={pathForTab(id)}
+                  className={activeTab === id ? 'active' : ''}
+                  aria-current={activeTab === id ? 'page' : undefined}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    switchTab(id)
+                  }}
+                >
+                  <span className={`tab-icon tab-icon-${id}`} aria-hidden="true">
+                    <span />
+                  </span>
+                  {t(labelKey)}
+                </a>
+              ))}
+            </div>
+          </div>
+          {PRIMARY_TABS.slice(1).map(({ id, labelKey }) => (
             <a
               key={id}
               href={pathForTab(id)}
@@ -825,6 +991,50 @@ function App() {
           </button>
         </div>
       </header>
+
+      <section
+        id="mobile-solver-tray"
+        className="mobile-solver-tray"
+        aria-label={t('tabs.allSolvers')}
+        hidden={!solverMenuOpen}
+      >
+        <span className="mobile-solver-tray-group">{t('tabs.group.cubes')}</span>
+        {SOLVER_NAV_ITEMS.filter((item) => item.group === 'cube').map(({ id, labelKey }) => (
+          <a
+            key={id}
+            href={pathForTab(id)}
+            className={activeTab === id ? 'active' : ''}
+            aria-current={activeTab === id ? 'page' : undefined}
+            onClick={(event) => {
+              event.preventDefault()
+              switchTab(id)
+            }}
+          >
+            <span className={`tab-icon tab-icon-${id}`} aria-hidden="true">
+              <span />
+            </span>
+            {t(labelKey)}
+          </a>
+        ))}
+        <span className="mobile-solver-tray-group">{t('tabs.group.other')}</span>
+        {SOLVER_NAV_ITEMS.filter((item) => item.group === 'wca').map(({ id, labelKey }) => (
+          <a
+            key={id}
+            href={pathForTab(id)}
+            className={activeTab === id ? 'active' : ''}
+            aria-current={activeTab === id ? 'page' : undefined}
+            onClick={(event) => {
+              event.preventDefault()
+              switchTab(id)
+            }}
+          >
+            <span className={`tab-icon tab-icon-${id}`} aria-hidden="true">
+              <span />
+            </span>
+            {t(labelKey)}
+          </a>
+        ))}
+      </section>
 
       {utilityPanel && (
         <section className="utility-popover panel" role="dialog" aria-label={utilityPanel}>
@@ -910,7 +1120,29 @@ function App() {
       )}
 
       {activeTab === 'about' ? (
-        <AboutPage onOpenSolver={() => switchTab('scan')} />
+        <AboutPage
+          onOpenGuide={openGuideForPuzzle}
+          onOpenPuzzle={(puzzleId) => switchTab(SOLVER_TAB_BY_PUZZLE_ID[puzzleId])}
+          onOpenSolver={() => switchTab('scan')}
+        />
+      ) : activeTab === 'mini2x2' ? (
+        <MiniCubeSolverPage />
+      ) : activeTab === 'revenge4x4' ? (
+        <Cube444SolverPage />
+      ) : activeTab === 'professor5x5' ? (
+        <Cube555SolverPage />
+      ) : activeTab === 'pyraminx' ? (
+        <PatternPuzzleSolverPage
+          adapter={pyraminxAdapter}
+          definition={getPuzzleDefinition('pyraminx')}
+          manualMoves={['U', "U'", 'R', "R'", 'L', "L'", 'B', "B'", 'u', "u'", 'r', "r'", 'l', "l'", 'b', "b'"]}
+        />
+      ) : activeTab === 'skewb' ? (
+        <PatternPuzzleSolverPage
+          adapter={skewbAdapter}
+          definition={getPuzzleDefinition('skewb')}
+          manualMoves={['U', "U'", 'R', "R'", 'L', "L'", 'B', "B'"]}
+        />
       ) : isProductPage ? (
         <ProductPage
           activeTab={activeTab}
@@ -1034,12 +1266,15 @@ function App() {
         ) : activeTab === 'steps' ? (
             <section className="guide-panel">
               <OperationManual
+                selectedPuzzleId={guidePuzzleId}
+                onSelectPuzzle={setGuidePuzzleId}
+                onOpenPuzzle={(puzzleId) => switchTab(SOLVER_TAB_BY_PUZZLE_ID[puzzleId])}
                 onPhotoSolve={() => setShowScanner(true)}
                 onRandomScramble={() => {
                   handleRandomScramble()
-                  setActiveTab('scan')
+                  switchTab('scan')
                 }}
-                onSetCube={() => setActiveTab('scan')}
+                onSetCube={() => switchTab('scan')}
               />
             </section>
           ) : (
@@ -1333,9 +1568,9 @@ function App() {
       )}
 
       <footer className="footer-grid">
-        {showNotation && <Notation />}
-        <HowToPlay className="how-to-footer" />
-        <Faq />
+        {showNotation && <Notation activePuzzleId={activePuzzleId} />}
+        <HowToPlay activePuzzleId={activePuzzleId} className="how-to-footer" />
+        <Faq activePuzzleId={activePuzzleId} />
         {moves && moves.length === 0 && (
           <p className="already-solved">{t('footer.alreadySolved')}</p>
         )}
@@ -1360,21 +1595,35 @@ function App() {
   )
 }
 
-function HowToPlay({ className = '' }: { className?: string }) {
+function HowToPlay({
+  activePuzzleId,
+  className = '',
+}: {
+  activePuzzleId: PuzzleId
+  className?: string
+}) {
   const { t } = useI18n()
   return (
     <section className={`how-to panel ${className}`.trim()}>
-      <h2>{t('how.heading')}</h2>
+      <h2>{t('how.heading', { puzzle: t(`puzzle.${activePuzzleId}.shortName`) })}</h2>
       <ol>
-        <li>{t('how.step.1')}</li>
-        <li>{t('how.step.2')}</li>
-        <li>{t('how.step.3')}</li>
+        <li>{t(`how.${activePuzzleId}.step.1`)}</li>
+        <li>{t(`how.${activePuzzleId}.step.2`)}</li>
+        <li>{t(`how.${activePuzzleId}.step.3`)}</li>
       </ol>
     </section>
   )
 }
 
-function AboutPage({ onOpenSolver }: { onOpenSolver: () => void }) {
+function AboutPage({
+  onOpenGuide,
+  onOpenPuzzle,
+  onOpenSolver,
+}: {
+  onOpenGuide: (puzzleId: PuzzleId) => void
+  onOpenPuzzle: (puzzleId: PuzzleId) => void
+  onOpenSolver: () => void
+}) {
   const { t } = useI18n()
   const featureKeys = ['scan', 'validate', 'solve', 'playback'] as const
   const audienceKeys = ['beginner', 'learner', 'player'] as const
@@ -1402,6 +1651,33 @@ function AboutPage({ onOpenSolver }: { onOpenSolver: () => void }) {
               <span className={`about-feature-icon about-feature-${key}`} aria-hidden="true" />
               <h3>{t(`about.feature.${key}.title`)}</h3>
               <p>{t(`about.feature.${key}.body`)}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="about-section">
+        <div className="about-section-heading">
+          <h2>{t('about.puzzles.heading')}</h2>
+          <p>{t('about.puzzles.description')}</p>
+        </div>
+        <div className="about-puzzle-grid">
+          {GUIDE_PUZZLE_IDS.map((puzzleId) => (
+            <article key={puzzleId} className="about-puzzle-card">
+              <span className="about-puzzle-meta">{t(`about.puzzle.${puzzleId}.meta`)}</span>
+              <h3>{t(`puzzle.${puzzleId}.name`)}</h3>
+              <p>{t(`about.puzzle.${puzzleId}.body`)}</p>
+              <ul>
+                {ABOUT_PUZZLE_FACT_IDS.map((factId) => (
+                  <li key={factId}>{t(`about.puzzle.${puzzleId}.${factId}`)}</li>
+                ))}
+              </ul>
+              <div className="about-puzzle-actions">
+                <button className="primary" onClick={() => onOpenPuzzle(puzzleId)}>
+                  {t('about.puzzle.solverCta')}
+                </button>
+                <button onClick={() => onOpenGuide(puzzleId)}>{t('about.puzzle.guideCta')}</button>
+              </div>
             </article>
           ))}
         </div>
@@ -1439,49 +1715,103 @@ function AboutPage({ onOpenSolver }: { onOpenSolver: () => void }) {
 
 function OperationManual({
   onPhotoSolve,
+  onOpenPuzzle,
   onRandomScramble,
+  onSelectPuzzle,
   onSetCube,
+  selectedPuzzleId,
 }: {
   onPhotoSolve: () => void
+  onOpenPuzzle: (puzzleId: PuzzleId) => void
   onRandomScramble: () => void
+  onSelectPuzzle: (puzzleId: PuzzleId) => void
   onSetCube: () => void
+  selectedPuzzleId: PuzzleId
 }) {
   const { t } = useI18n()
+  const showBeginnerTutorial = selectedPuzzleId === '333'
   return (
     <div className="guide-content">
       <section className="tutorial-hero">
         <div>
-          <span className="tutorial-kicker">{t('tutorial.kicker')}</span>
-          <h2>{t('tutorial.heading')}</h2>
-          <p>{t('tutorial.description')}</p>
+          <span className="tutorial-kicker">{t('guide.kicker')}</span>
+          <h2>{t(`guide.${selectedPuzzleId}.heading`)}</h2>
+          <p>{t(`guide.${selectedPuzzleId}.description`)}</p>
         </div>
         <div className="tutorial-actions">
-          <button className="primary" onClick={onPhotoSolve}>{t('scan.photoSolve')}</button>
-          <button onClick={onRandomScramble}>{t('scan.randomScramble')}</button>
-          <button onClick={onSetCube}>{t('guide.openSolver')}</button>
+          <button className="primary" onClick={() => onOpenPuzzle(selectedPuzzleId)}>
+            {t('guide.openSelectedSolver', { puzzle: t(`puzzle.${selectedPuzzleId}.shortName`) })}
+          </button>
+          {showBeginnerTutorial && (
+            <>
+              <button onClick={onPhotoSolve}>{t('scan.photoSolve')}</button>
+              <button onClick={onRandomScramble}>{t('scan.randomScramble')}</button>
+              <button onClick={onSetCube}>{t('guide.openSolver')}</button>
+            </>
+          )}
         </div>
       </section>
 
-      <div className="tutorial-grid">
-        {BEGINNER_TUTORIAL.map((item, index) => (
-          <article key={item.id} className="guide-card tutorial-card">
-            <MiniFaceDiagram colors={item.colors} />
-            <span className="tutorial-step">{index + 1}</span>
-            <h3>{t(item.titleKey)}</h3>
-            <p>{t(item.bodyKey)}</p>
-            <div className="formula-row">
-              <strong>{t('tutorial.formula')}</strong>
-              <code>{item.formula}</code>
-            </div>
-          </article>
+      <div className="guide-selector" aria-label={t('guide.selectorLabel')}>
+        {GUIDE_PUZZLE_IDS.map((puzzleId) => (
+          <button
+            key={puzzleId}
+            className={puzzleId === selectedPuzzleId ? 'active' : ''}
+            onClick={() => onSelectPuzzle(puzzleId)}
+            aria-pressed={puzzleId === selectedPuzzleId}
+          >
+            <span>{t(`puzzle.${puzzleId}.shortName`)}</span>
+            <small>{t(`guide.${puzzleId}.selectorNote`)}</small>
+          </button>
         ))}
       </div>
 
-      <aside className="guide-note">
-        <strong>{t('guide.only3x3')}</strong>
-        <p>{t('guide.only3x3Body')}</p>
-        <button onClick={onSetCube}>{t('guide.openSetCube')}</button>
-      </aside>
+      <section className="guide-layout">
+        <ol className="guide-step-list">
+          {GUIDE_STEP_IDS.map((stepId, index) => (
+            <li key={stepId} className="guide-card">
+              <span className="tutorial-step">{index + 1}</span>
+              <h3>{t(`guide.${selectedPuzzleId}.step.${stepId}.title`)}</h3>
+              <p>{t(`guide.${selectedPuzzleId}.step.${stepId}.body`)}</p>
+            </li>
+          ))}
+        </ol>
+
+        <aside className="guide-note guide-fact-panel">
+          <strong>{t('guide.puzzleFacts')}</strong>
+          <ul>
+            {GUIDE_FACT_IDS.map((factId) => (
+              <li key={factId}>{t(`guide.${selectedPuzzleId}.fact.${factId}`)}</li>
+            ))}
+          </ul>
+          <button onClick={() => onOpenPuzzle(selectedPuzzleId)}>
+            {t('guide.openSelectedSolver', { puzzle: t(`puzzle.${selectedPuzzleId}.shortName`) })}
+          </button>
+        </aside>
+      </section>
+
+      {showBeginnerTutorial && (
+        <section className="tutorial-section">
+          <div className="about-section-heading">
+            <h2>{t('tutorial.heading')}</h2>
+            <p>{t('tutorial.description')}</p>
+          </div>
+          <div className="tutorial-grid">
+            {BEGINNER_TUTORIAL.map((item, index) => (
+              <article key={item.id} className="guide-card tutorial-card">
+                <MiniFaceDiagram colors={item.colors} />
+                <span className="tutorial-step">{index + 1}</span>
+                <h3>{t(item.titleKey)}</h3>
+                <p>{t(item.bodyKey)}</p>
+                <div className="formula-row">
+                  <strong>{t('tutorial.formula')}</strong>
+                  <code>{item.formula}</code>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }
@@ -1899,15 +2229,26 @@ function Solution({
   )
 }
 
-function Notation() {
+function Notation({ activePuzzleId }: { activePuzzleId: PuzzleId }) {
   const { t } = useI18n()
+  const notationMoves =
+    activePuzzleId === 'pyraminx'
+      ? ['U', 'R', 'L', 'B', 'u', 'r', 'l', 'b']
+      : activePuzzleId === 'skewb'
+        ? ['U', 'R', 'L', 'B']
+        : ['U', 'D', 'L', 'R', 'F', 'B']
   return (
     <details className="notation">
-      <summary>{t('notation.summary')}</summary>
+      <summary>{t('notation.summary', { puzzle: t(`puzzle.${activePuzzleId}.shortName`) })}</summary>
       <ul>
         <li>
-          <code>U</code>, <code>D</code>, <code>L</code>, <code>R</code>, <code>F</code>,
-          <code>B</code> — {t('notation.faces')}
+          {notationMoves.map((move, index) => (
+            <span key={move}>
+              {index > 0 ? ', ' : ''}
+              <code>{move}</code>
+            </span>
+          ))}{' '}
+          - {t(`notation.${activePuzzleId}.faces`)}
         </li>
         <li>{t('notation.clockwise')}</li>
         <li>
@@ -1921,19 +2262,19 @@ function Notation() {
   )
 }
 
-function Faq() {
+function Faq({ activePuzzleId }: { activePuzzleId: PuzzleId }) {
   const { t } = useI18n()
   return (
     <details className="seo-faq panel">
       <summary>{t('faq.summary')}</summary>
       <div className="faq-list">
         <article>
-          <h2>{t('faq.solve.question')}</h2>
-          <p>{t('faq.solve.answer')}</p>
+          <h2>{t(`faq.${activePuzzleId}.solve.question`)}</h2>
+          <p>{t(`faq.${activePuzzleId}.solve.answer`)}</p>
         </article>
         <article>
-          <h2>{t('faq.impossible.question')}</h2>
-          <p>{t('faq.impossible.answer')}</p>
+          <h2>{t(`faq.${activePuzzleId}.limits.question`)}</h2>
+          <p>{t(`faq.${activePuzzleId}.limits.answer`)}</p>
         </article>
         <article>
           <h2>{t('faq.install.question')}</h2>
