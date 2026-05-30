@@ -90,13 +90,13 @@ Root cause:
 - The 2x2 visual corner ordering did not match cubing.js `CORNERS` orbit ordering.
 - The renderer assumed one position/piece order, while `KPattern.patternData.CORNERS` used another.
 
-The fixed 2x2 corner order is:
+The fixed 2x2 corner position order is:
 
 ```text
-0 URF
+0 UFR / URF position
 1 UBR
 2 UBL
-3 UFL
+3 ULF / UFL position
 4 DFR
 5 DLF
 6 DBL
@@ -104,6 +104,23 @@ The fixed 2x2 corner order is:
 ```
 
 This order is used by both `MiniCube3D.tsx` and `MiniCubeSolverPage.tsx`.
+
+Important nuance: cubing.js stores the sticker order for those corners as:
+
+```text
+0 UFR
+1 URB
+2 UBL
+3 ULF
+4 DRF
+5 DFL
+6 DLB
+7 DBR
+```
+
+Do not replace that with visual axis order such as `[U/D, R/L, F/B]`. The piece
+position may still be correct, but 90-degree turns will animate a physical layer
+and then appear to recolor when the committed `KPattern` state is rendered.
 
 Avoid this for 4x4:
 
@@ -119,7 +136,9 @@ Avoid this for 4x4:
   - scanner/import conversion
   - state validation
   - animation layer membership
-- Add tests or debug assertions for single moves such as `R`, `U`, `F`, `Rw`, `Uw`, and slice moves.
+- Add tests or debug assertions that compare single-move `KPattern` states to a
+  physical rotation of the previous rendered stickers for moves such as `R`,
+  `U`, `F`, `Rw`, `Uw`, and slice moves.
 
 ### 4. 2x2 Photo Solve Was Initially a Placeholder
 
@@ -290,4 +309,3 @@ Before coding 4x4, answer these:
 - What UI must stay identical to 3x3 and 2x2?
 - What tests prove the adapter is correct?
 - What browser steps prove animation is physical, not sticker swapping?
-

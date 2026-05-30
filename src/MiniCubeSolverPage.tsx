@@ -5,6 +5,12 @@ import type { Face } from './cube'
 import CameraScanner from './CameraScanner'
 import { MiniCube3D } from './MiniCube3D'
 import { useI18n } from './i18n'
+import {
+  MINI_CUBE_CORNER_FACES,
+  miniCubeRotateFaces,
+  miniCubeStateFingerprint,
+  miniCubeStickersForState,
+} from './miniCubeMapping'
 import { cube222Adapter } from './puzzles/222'
 import type { CubingPatternState } from './puzzles/cubingPattern'
 import { msg, msgKey, rawMsg, translateMessage } from './solverText'
@@ -22,19 +28,6 @@ type MiniCubeStatus =
 const PLAYBACK_MS = 700
 const PUZZLE_VALUE = msgKey('practice.short.222')
 
-const CORNER_FACES: readonly (readonly Face[])[] = [
-  // Keep in sync with cubing.js 2x2 kpuzzle CORNERS orbit ordering:
-  // 0 URF, 1 UBR, 2 UBL, 3 UFL, 4 DFR, 5 DLF, 6 DBL, 7 DRB.
-  ['U', 'R', 'F'],
-  ['U', 'R', 'B'],
-  ['U', 'L', 'B'],
-  ['U', 'L', 'F'],
-  ['D', 'R', 'F'],
-  ['D', 'L', 'F'],
-  ['D', 'L', 'B'],
-  ['D', 'R', 'B'],
-]
-
 type FaceletRef = {
   face: Face
   pos: number
@@ -50,29 +43,24 @@ const FACELET_OFFSETS: Record<Face, number> = {
 }
 
 const CORNER_FACELETS: readonly (readonly FaceletRef[])[] = [
-  [{ face: 'U', pos: 3 }, { face: 'R', pos: 1 }, { face: 'F', pos: 1 }],
+  [{ face: 'U', pos: 3 }, { face: 'F', pos: 1 }, { face: 'R', pos: 1 }],
   [{ face: 'U', pos: 1 }, { face: 'R', pos: 0 }, { face: 'B', pos: 0 }],
-  [{ face: 'U', pos: 0 }, { face: 'L', pos: 0 }, { face: 'B', pos: 1 }],
+  [{ face: 'U', pos: 0 }, { face: 'B', pos: 1 }, { face: 'L', pos: 0 }],
   [{ face: 'U', pos: 2 }, { face: 'L', pos: 1 }, { face: 'F', pos: 0 }],
   [{ face: 'D', pos: 1 }, { face: 'R', pos: 3 }, { face: 'F', pos: 3 }],
-  [{ face: 'D', pos: 0 }, { face: 'L', pos: 3 }, { face: 'F', pos: 2 }],
+  [{ face: 'D', pos: 0 }, { face: 'F', pos: 2 }, { face: 'L', pos: 3 }],
   [{ face: 'D', pos: 2 }, { face: 'L', pos: 2 }, { face: 'B', pos: 3 }],
-  [{ face: 'D', pos: 3 }, { face: 'R', pos: 2 }, { face: 'B', pos: 2 }],
+  [{ face: 'D', pos: 3 }, { face: 'B', pos: 2 }, { face: 'R', pos: 2 }],
 ]
-
-function rotateFaces(faces: readonly Face[], turns: number): Face[] {
-  const normalized = ((turns % faces.length) + faces.length) % faces.length
-  return faces.map((_, index) => faces[(index + normalized) % faces.length])
-}
 
 function faceletAt(facelets: string, ref: FaceletRef): Face {
   return facelets[FACELET_OFFSETS[ref.face] + ref.pos] as Face
 }
 
 function findCornerPiece(colors: readonly Face[]): { piece: number; orientation: number } | null {
-  for (let piece = 0; piece < CORNER_FACES.length; piece++) {
+  for (let piece = 0; piece < MINI_CUBE_CORNER_FACES.length; piece++) {
     for (let orientation = 0; orientation < 3; orientation++) {
-      const candidate = rotateFaces(CORNER_FACES[piece], orientation)
+      const candidate = miniCubeRotateFaces(MINI_CUBE_CORNER_FACES[piece], orientation)
       if (candidate.every((face, index) => face === colors[index])) {
         return { piece, orientation }
       }
@@ -118,26 +106,6 @@ function stateFrom2x2Facelets(facelets: string): { ok: true; state: CubingPatter
       },
     },
   }
-}
-
-function stickersForState(state: CubingPatternState | null): Face[] {
-  const corners = state?.patternData.CORNERS
-  if (!corners) return CORNER_FACES.flat()
-
-  return corners.pieces.flatMap((piece, position) => {
-    const faces = CORNER_FACES[piece] ?? CORNER_FACES[position] ?? CORNER_FACES[0]
-    return rotateFaces(faces, corners.orientation[position] ?? 0)
-  })
-}
-
-function stateFingerprint(state: CubingPatternState | null): string {
-  if (!state) return 'loading'
-  const serialized = JSON.stringify(state.patternData)
-  let hash = 0
-  for (let i = 0; i < serialized.length; i++) {
-    hash = (hash * 31 + serialized.charCodeAt(i)) >>> 0
-  }
-  return hash.toString(36).toUpperCase().padStart(7, '0')
 }
 
 function statusLabel(status: MiniCubeStatus, t: Translate): string {
@@ -197,8 +165,8 @@ export function MiniCubeSolverPage() {
   }, [])
 
   const displayState = moves ? (solutionStates[stepIndex] ?? state) : state
-  const stickers = useMemo(() => stickersForState(displayState), [displayState])
-  const fingerprint = useMemo(() => stateFingerprint(displayState), [displayState])
+  const stickers = useMemo(() => miniCubeStickersForState(displayState), [displayState])
+  const fingerprint = useMemo(() => miniCubeStateFingerprint(displayState), [displayState])
   const canSolve = !!state && !busy && status !== 'loading'
   const canManualMove = !!state && !busy && status !== 'loading'
   const canPlayback = !!moves && moves.length > 0
