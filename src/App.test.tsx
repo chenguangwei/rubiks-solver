@@ -446,6 +446,78 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: /3D Cube Control/i })).toBeInTheDocument()
   })
 
+  it('opens the 2x2 how-to SEO page with guide copy and solver CTA', async () => {
+    window.history.replaceState(null, '', '/how-to-solve-a-2x2-rubiks-cube')
+
+    render(<App />)
+
+    expect(screen.getByRole('heading', { name: /How to Solve a 2x2 Rubik's Cube/i })).toBeInTheDocument()
+    expect(screen.getByText(/The 2x2 cube is a corner-only puzzle/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /2x2 method at a glance/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Common 2x2 mistakes/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Open the 2x2 solver/i })).toHaveAttribute(
+      'href',
+      '/2x2x2-solver',
+    )
+    await waitFor(() => {
+      expect(document.title).toMatch(/How to Solve a 2x2 Rubik's Cube/i)
+      expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
+        'href',
+        'https://rubikssolver.pro/how-to-solve-a-2x2-rubiks-cube',
+      )
+      expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
+        'content',
+        expect.stringMatching(/2x2 Rubik's Cube/i),
+      )
+    })
+  })
+
+  it('opens the 4x4 how-to SEO page without overstating solver scope', async () => {
+    window.history.replaceState(null, '', '/how-to-solve-a-4x4-rubiks-cube')
+
+    render(<App />)
+
+    expect(screen.getByRole('heading', { name: /How to Solve a 4x4 Rubik's Cube/i })).toBeInTheDocument()
+    expect(screen.getByText(/solve the centers, pair the edges, then finish it like a 3x3/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /4x4 method at a glance/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Parity cases to expect/i })).toBeInTheDocument()
+    expect(screen.getByText(/known-history practice/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Open the 4x4 practice solver/i })).toHaveAttribute(
+      'href',
+      '/4x4x4-solver',
+    )
+    await waitFor(() => {
+      expect(document.title).toMatch(/How to Solve a 4x4 Rubik's Cube/i)
+      expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
+        'href',
+        'https://rubikssolver.pro/how-to-solve-a-4x4-rubiks-cube',
+      )
+    })
+  })
+
+  it('opens the cube solver statistics SEO page with cautious sourcing language', async () => {
+    window.history.replaceState(null, '', '/how-many-people-can-solve-a-rubiks-cube')
+
+    render(<App />)
+
+    expect(screen.getByRole('heading', { name: /How Many People Can Solve a Rubik's Cube/i })).toBeInTheDocument()
+    expect(screen.getByText(/There is no single official live count/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Why the number is hard to measure/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /What counts as being able to solve it/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Try the 3x3 solver/i })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: /Learn with the 2x2 guide/i })).toHaveAttribute(
+      'href',
+      '/how-to-solve-a-2x2-rubiks-cube',
+    )
+    await waitFor(() => {
+      expect(document.title).toMatch(/How Many People Can Solve a Rubik's Cube/i)
+      expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
+        'href',
+        'https://rubikssolver.pro/how-many-people-can-solve-a-rubiks-cube',
+      )
+    })
+  })
+
   it('opens the 2x2 solver route with route metadata', async () => {
     window.history.replaceState(null, '', '/2x2x2-solver')
 
