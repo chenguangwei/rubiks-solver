@@ -7,7 +7,8 @@ const SITE_ORIGIN = 'https://rubikssolver.pro'
 const HOME_URL = `${SITE_ORIGIN}/`
 const ABOUT_URL = `${SITE_ORIGIN}/about`
 
-export type SeoPage = 'about' | PuzzleId
+export type SeoArticlePage = 'how2x2' | 'how4x4' | 'cubeStats'
+export type SeoPage = 'about' | PuzzleId | SeoArticlePage
 
 type SeoCopy = {
   htmlLang: string
@@ -15,6 +16,16 @@ type SeoCopy = {
   title: string
   description: string
   keywords: string
+}
+
+function englishOnly(copy: SeoCopy): Record<Language, SeoCopy> {
+  return {
+    en: copy,
+    zh: copy,
+    ja: copy,
+    ko: copy,
+    fr: copy,
+  }
 }
 
 const SEO_COPY: Record<Language, SeoCopy> = {
@@ -331,6 +342,42 @@ const SKEWB_SEO_COPY: Record<Language, SeoCopy> = {
   },
 }
 
+const ARTICLE_URLS: Record<SeoArticlePage, string> = {
+  how2x2: `${SITE_ORIGIN}/how-to-solve-a-2x2-rubiks-cube`,
+  how4x4: `${SITE_ORIGIN}/how-to-solve-a-4x4-rubiks-cube`,
+  cubeStats: `${SITE_ORIGIN}/how-many-people-can-solve-a-rubiks-cube`,
+}
+
+const ARTICLE_SEO_COPY: Record<SeoArticlePage, Record<Language, SeoCopy>> = {
+  how2x2: englishOnly({
+    htmlLang: 'en',
+    ogLocale: 'en_US',
+    title: "How to Solve a 2x2 Rubik's Cube - Beginner Guide",
+    description:
+      "Learn how to solve a 2x2 Rubik's Cube with a corner-only beginner method, common mistakes, notation tips, and a direct link to the online 2x2 solver.",
+    keywords:
+      "how to solve a 2x2 Rubik's Cube, 2x2 Rubik's Cube guide, 2x2 cube method, pocket cube solver, 2x2 solver",
+  }),
+  how4x4: englishOnly({
+    htmlLang: 'en',
+    ogLocale: 'en_US',
+    title: "How to Solve a 4x4 Rubik's Cube - Beginner Reduction Guide",
+    description:
+      "Learn how to solve a 4x4 Rubik's Cube by making centers, pairing edges, reducing to a 3x3, handling parity, and practicing with the 4x4 solver.",
+    keywords:
+      "how to solve a 4x4 Rubik's Cube, 4x4 Rubik's Cube guide, Rubik's Revenge tutorial, 4x4 parity, 4x4 solver",
+  }),
+  cubeStats: englishOnly({
+    htmlLang: 'en',
+    ogLocale: 'en_US',
+    title: "How Many People Can Solve a Rubik's Cube? - Estimates and Context",
+    description:
+      "Understand why Rubik's Cube solving statistics vary, what counts as being able to solve a cube, and how beginners can start learning.",
+    keywords:
+      "how many people can solve a Rubik's Cube, Rubik's Cube statistics, percentage of people who can solve a Rubik's Cube, cube solving ability",
+  }),
+}
+
 const PUZZLE_SEO_COPY: Record<PuzzleId, Record<Language, SeoCopy>> = {
   '222': MINI_CUBE_SEO_COPY,
   '333': SEO_COPY,
@@ -360,15 +407,25 @@ function upsertCanonical(url: string) {
   element.href = url
 }
 
+function isSeoArticlePage(page: SeoPage): page is SeoArticlePage {
+  return Object.prototype.hasOwnProperty.call(ARTICLE_URLS, page)
+}
+
 function canonicalUrlForPage(page: SeoPage): string {
   if (page === 'about') return ABOUT_URL
+  if (isSeoArticlePage(page)) return ARTICLE_URLS[page]
   const route = getPuzzleDefinition(page).route
   return route === '/' ? HOME_URL : `${SITE_ORIGIN}${route}`
 }
 
 export function useSeoMetadata(language: Language, page: SeoPage = '333') {
   useEffect(() => {
-    const copy = page === 'about' ? ABOUT_SEO_COPY[language] : PUZZLE_SEO_COPY[page][language]
+    const copy =
+      page === 'about'
+        ? ABOUT_SEO_COPY[language]
+        : isSeoArticlePage(page)
+          ? ARTICLE_SEO_COPY[page][language]
+          : PUZZLE_SEO_COPY[page][language]
     const url = canonicalUrlForPage(page)
     document.documentElement.lang = copy.htmlLang
     document.title = copy.title

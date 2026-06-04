@@ -9,6 +9,7 @@ import { parseMove, stickerIndicesForFace } from './moves'
 import type { ParsedMove } from './moves'
 import { parseNet } from './parser'
 import { useSeoMetadata } from './seo'
+import type { SeoPage } from './seo'
 import { decodeStateFromHash, shareUrl } from './share'
 import { MiniCubeSolverPage } from './MiniCubeSolverPage'
 import { Cube444SolverPage } from './Cube444SolverPage'
@@ -50,6 +51,9 @@ type WorkspaceTab =
   | 'challenge'
   | 'replay'
   | 'profile'
+  | 'how2x2'
+  | 'how4x4'
+  | 'cubeStats'
 type SolveSurface = 'setup' | 'manual' | 'ai'
 type LearningStage = 'Cross' | 'F2L' | 'OLL' | 'PLL'
 type LearningSubTab = 'Overview' | 'Cases' | 'Moves' | 'Tips'
@@ -76,6 +80,7 @@ const LS_MOVES_SAVED = 'rubiks-solver:moves-saved'
 const LS_TIGHT_COUNT = 'rubiks-solver:tight-count'
 
 type SolverWorkspaceTab = 'scan' | 'mini2x2' | 'revenge4x4' | 'professor5x5' | 'pyraminx' | 'skewb'
+type SeoArticleTab = 'how2x2' | 'how4x4' | 'cubeStats'
 
 const PUZZLE_ID_BY_SOLVER_TAB: Record<SolverWorkspaceTab, PuzzleId> = {
   scan: '333',
@@ -93,6 +98,18 @@ const SOLVER_TAB_BY_PUZZLE_ID: Record<PuzzleId, SolverWorkspaceTab> = {
   '555': 'professor5x5',
   pyraminx: 'pyraminx',
   skewb: 'skewb',
+}
+
+const SEO_ARTICLE_ROUTES: Record<SeoArticleTab, string> = {
+  how2x2: '/how-to-solve-a-2x2-rubiks-cube',
+  how4x4: '/how-to-solve-a-4x4-rubiks-cube',
+  cubeStats: '/how-many-people-can-solve-a-rubiks-cube',
+}
+
+const SEO_PAGE_BY_ARTICLE_TAB: Record<SeoArticleTab, SeoPage> = {
+  how2x2: 'how2x2',
+  how4x4: 'how4x4',
+  cubeStats: 'cubeStats',
 }
 
 const PRIMARY_TABS: readonly { id: WorkspaceTab; labelKey: string }[] = [
@@ -118,8 +135,179 @@ const GUIDE_STEP_IDS = ['setup', 'entry', 'solve', 'playback'] as const
 const GUIDE_FACT_IDS = ['scope', 'entry', 'notation'] as const
 const ABOUT_PUZZLE_FACT_IDS = ['entry', 'solve', 'playback'] as const
 
+type SeoArticle = {
+  kicker: string
+  title: string
+  intro: string
+  primaryCta: {
+    label: string
+    href: string
+    target: WorkspaceTab
+  }
+  highlights: string[]
+  sections: {
+    title: string
+    body: string
+    items?: string[]
+  }[]
+  related: {
+    label: string
+    href: string
+    target: WorkspaceTab
+  }[]
+}
+
+const SEO_ARTICLES: Record<SeoArticleTab, SeoArticle> = {
+  how2x2: {
+    kicker: '2x2 beginner guide',
+    title: "How to Solve a 2x2 Rubik's Cube",
+    intro:
+      'The 2x2 cube is a corner-only puzzle: there are no edge pieces and no fixed center stickers, so the solve is about placing and twisting eight corners.',
+    primaryCta: {
+      label: 'Open the 2x2 solver',
+      href: '/2x2x2-solver',
+      target: 'mini2x2',
+    },
+    highlights: [
+      'A 2x2 solve is shorter than a 3x3 solve, but corner tracking matters more.',
+      'Use legal random scrambles before practicing algorithms.',
+      'Follow playback to connect each move to a corner change.',
+    ],
+    sections: [
+      {
+        title: '2x2 method at a glance',
+        body:
+          'A simple beginner path is to solve one layer, orient the last-layer corners, then permute those corners until every side matches.',
+        items: [
+          'Choose one face color and build the first layer with all four corners aligned.',
+          'Keep the solved layer on the bottom while you turn the top corners.',
+          'Use short right-hand or left-hand triggers to twist corners without losing the first layer.',
+          'Finish by cycling the last-layer corners into the correct positions.',
+        ],
+      },
+      {
+        title: 'Common 2x2 mistakes',
+        body:
+          'Most failed 2x2 solves come from treating it like a tiny 3x3. Instead, track corner orientation and corner position separately.',
+        items: [
+          'Do not look for edge pieces; the puzzle only has corners.',
+          'Do not assume colors have fixed centers, because the 2x2 has no visible centers.',
+          'If one corner looks twisted by itself, recheck the full state before blaming the algorithm.',
+        ],
+      },
+      {
+        title: 'Practice with playback',
+        body:
+          'Use the online 2x2 solver to generate legal scrambles, run the browser solver, and step through the route while watching the preview.',
+      },
+    ],
+    related: [
+      { label: 'Read the 4x4 guide', href: '/how-to-solve-a-4x4-rubiks-cube', target: 'how4x4' },
+      { label: 'Try the 3x3 solver', href: '/', target: 'scan' },
+    ],
+  },
+  how4x4: {
+    kicker: '4x4 beginner guide',
+    title: "How to Solve a 4x4 Rubik's Cube",
+    intro:
+      'The beginner 4x4 route is reduction: solve the centers, pair the edges, then finish it like a 3x3 while watching for parity.',
+    primaryCta: {
+      label: 'Open the 4x4 practice solver',
+      href: '/4x4x4-solver',
+      target: 'revenge4x4',
+    },
+    highlights: [
+      'A 4x4 solve becomes easier once you reduce it into a 3x3-like state.',
+      '4x4 centers are movable, so color scheme matters early.',
+      'Parity can appear on 4x4 even when your 3x3 method is correct.',
+    ],
+    sections: [
+      {
+        title: '4x4 method at a glance',
+        body:
+          'Start by making six solid centers, pair all twelve edge pairs, then solve the reduced cube with the 3x3 method you already know.',
+        items: [
+          'Build opposite centers first so the color scheme stays consistent.',
+          'Pair matching edge pieces before treating the cube as a 3x3.',
+          'Keep wide moves like Uw and Rw in your notation so your practice history remains reversible.',
+        ],
+      },
+      {
+        title: 'Parity cases to expect',
+        body:
+          'A 4x4 has no fixed centers and can reach states that look impossible on a 3x3. The two common beginner surprises are OLL parity and PLL parity.',
+        items: [
+          'OLL parity usually looks like one flipped last-layer edge pair.',
+          'PLL parity usually looks like two pieces need to swap after the 3x3 solve is nearly done.',
+          'Parity is not a broken cube; it is part of even-layer cube solving.',
+        ],
+      },
+      {
+        title: 'Use RubikSolver honestly',
+        body:
+          'The 4x4 page is a known-history practice solver. It can replay generated scrambles and tracked manual histories, but it does not claim arbitrary 4x4 state solving.',
+      },
+    ],
+    related: [
+      { label: 'Open the 2x2 guide', href: '/how-to-solve-a-2x2-rubiks-cube', target: 'how2x2' },
+      { label: 'Try the 3x3 solver', href: '/', target: 'scan' },
+    ],
+  },
+  cubeStats: {
+    kicker: 'Cube solving statistics',
+    title: "How Many People Can Solve a Rubik's Cube?",
+    intro:
+      'There is no single official live count of how many people can solve a Rubik\'s Cube, so published numbers should be treated as estimates rather than precise measurements.',
+    primaryCta: {
+      label: 'Try the 3x3 solver',
+      href: '/',
+      target: 'scan',
+    },
+    highlights: [
+      'Solving once, solving from memory, and speedcubing are separate milestones.',
+      'Common estimates vary because they measure different levels of ability.',
+      'Online tutorials make the group larger over time, but not easy to count precisely.',
+    ],
+    sections: [
+      {
+        title: 'Why the number is hard to measure',
+        body:
+          'Cube solving ability is rarely tracked in a standardized global survey, and people define success differently.',
+        items: [
+          'Some counts include anyone who solved once with instructions.',
+          'Some people can solve a cube from memory but do not compete.',
+          'Online tutorials and solver apps keep changing how many people can learn.',
+        ],
+      },
+      {
+        title: 'What counts as being able to solve it',
+        body:
+          'A practical definition is solving a scrambled 3x3 to completion without needing the cube to be reset by someone else.',
+        items: [
+          'Beginner solvers may use a printed method or app guidance.',
+          'Independent solvers can finish from memory, even if slowly.',
+          'Speedcubers optimize inspection, recognition, algorithms, and turning speed.',
+        ],
+      },
+      {
+        title: 'How to join that group',
+        body:
+          'Start with a simple method, practice on legal scrambles, and use visual playback when you want to understand what a move changed.',
+      },
+    ],
+    related: [
+      { label: 'Learn with the 2x2 guide', href: '/how-to-solve-a-2x2-rubiks-cube', target: 'how2x2' },
+      { label: 'Read the 4x4 guide', href: '/how-to-solve-a-4x4-rubiks-cube', target: 'how4x4' },
+    ],
+  },
+}
+
 function isSolverWorkspaceTab(tab: WorkspaceTab): tab is SolverWorkspaceTab {
   return Object.prototype.hasOwnProperty.call(PUZZLE_ID_BY_SOLVER_TAB, tab)
+}
+
+function isSeoArticleTab(tab: WorkspaceTab): tab is SeoArticleTab {
+  return Object.prototype.hasOwnProperty.call(SEO_ARTICLE_ROUTES, tab)
 }
 
 function puzzleIdForTab(tab: WorkspaceTab): PuzzleId | null {
@@ -272,6 +460,10 @@ function readInitialTab(): WorkspaceTab {
   if (typeof window === 'undefined') return 'scan'
   const pathname = window.location.pathname.replace(/\/+$/, '')
   if (pathname === '/about') return 'about'
+  const matchedArticle = (Object.keys(SEO_ARTICLE_ROUTES) as SeoArticleTab[]).find((id) => {
+    return SEO_ARTICLE_ROUTES[id].replace(/\/+$/, '') === pathname
+  })
+  if (matchedArticle) return matchedArticle
   const matchedPuzzle = (Object.keys(SOLVER_TAB_BY_PUZZLE_ID) as PuzzleId[]).find((id) => {
     const route = getPuzzleDefinition(id).route.replace(/\/+$/, '')
     return route === pathname
@@ -282,10 +474,17 @@ function readInitialTab(): WorkspaceTab {
 
 function pathForTab(tab: WorkspaceTab): string {
   if (tab === 'about') return '/about'
+  if (isSeoArticleTab(tab)) return SEO_ARTICLE_ROUTES[tab]
   if (tab in PUZZLE_ID_BY_SOLVER_TAB) {
     return getPuzzleDefinition(PUZZLE_ID_BY_SOLVER_TAB[tab as SolverWorkspaceTab]).route
   }
   return '/'
+}
+
+function seoPageForTab(tab: WorkspaceTab, activePuzzleId: PuzzleId): SeoPage {
+  if (tab === 'about') return 'about'
+  if (isSeoArticleTab(tab)) return SEO_PAGE_BY_ARTICLE_TAB[tab]
+  return activePuzzleId
 }
 
 function App() {
@@ -338,7 +537,7 @@ function App() {
 
   const activePuzzleId = puzzleIdForTab(activeTab) ?? guidePuzzleId
 
-  useSeoMetadata(language, activeTab === 'about' ? 'about' : activePuzzleId)
+  useSeoMetadata(language, seoPageForTab(activeTab, activePuzzleId))
 
   const describeMoveText = (move: ParsedMove) => {
     const face = t(`face.name.${move.face}`)
@@ -1119,10 +1318,13 @@ function App() {
         </section>
       )}
 
-      {activeTab === 'about' ? (
+      {isSeoArticleTab(activeTab) ? (
+        <SeoArticlePage articleId={activeTab} onNavigate={switchTab} />
+      ) : activeTab === 'about' ? (
         <AboutPage
           onOpenGuide={openGuideForPuzzle}
           onOpenPuzzle={(puzzleId) => switchTab(SOLVER_TAB_BY_PUZZLE_ID[puzzleId])}
+          onOpenArticle={switchTab}
           onOpenSolver={() => switchTab('scan')}
         />
       ) : activeTab === 'mini2x2' ? (
@@ -1571,6 +1773,7 @@ function App() {
         {showNotation && <Notation activePuzzleId={activePuzzleId} />}
         <HowToPlay activePuzzleId={activePuzzleId} className="how-to-footer" />
         <Faq activePuzzleId={activePuzzleId} />
+        <SeoResourceLinks onNavigate={switchTab} />
         {moves && moves.length === 0 && (
           <p className="already-solved">{t('footer.alreadySolved')}</p>
         )}
@@ -1615,18 +1818,124 @@ function HowToPlay({
   )
 }
 
+function SeoArticlePage({
+  articleId,
+  onNavigate,
+}: {
+  articleId: SeoArticleTab
+  onNavigate: (tab: WorkspaceTab) => void
+}) {
+  const article = SEO_ARTICLES[articleId]
+  return (
+    <article className="seo-article-page">
+      <section className="seo-article-hero panel">
+        <div>
+          <span className="about-kicker">{article.kicker}</span>
+          <h2>{article.title}</h2>
+          <p>{article.intro}</p>
+        </div>
+        <a
+          className="seo-article-cta"
+          href={article.primaryCta.href}
+          onClick={(event) => {
+            event.preventDefault()
+            onNavigate(article.primaryCta.target)
+          }}
+        >
+          {article.primaryCta.label}
+        </a>
+      </section>
+
+      <section className="seo-article-layout">
+        <div className="seo-article-main">
+          {article.sections.map((section) => (
+            <section key={section.title} className="seo-article-section panel">
+              <h2>{section.title}</h2>
+              <p>{section.body}</p>
+              {section.items && (
+                <ul>
+                  {section.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ))}
+        </div>
+
+        <aside className="seo-article-sidebar">
+          <section className="seo-article-card panel">
+            <h2>Quick notes</h2>
+            <ul>
+              {article.highlights.map((highlight) => (
+                <li key={highlight}>{highlight}</li>
+              ))}
+            </ul>
+          </section>
+          <section className="seo-article-card panel">
+            <h2>Related pages</h2>
+            <div className="seo-link-list">
+              {article.related.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    onNavigate(link.target)
+                  }}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+          </section>
+        </aside>
+      </section>
+    </article>
+  )
+}
+
+function SeoResourceLinks({ onNavigate }: { onNavigate: (tab: WorkspaceTab) => void }) {
+  const resourceIds: SeoArticleTab[] = ['how2x2', 'how4x4', 'cubeStats']
+  return (
+    <section className="seo-resources panel">
+      <h2>Learning pages</h2>
+      <div className="seo-link-list">
+        {resourceIds.map((id) => {
+          const article = SEO_ARTICLES[id]
+          return (
+            <a
+              key={id}
+              href={SEO_ARTICLE_ROUTES[id]}
+              onClick={(event) => {
+                event.preventDefault()
+                onNavigate(id)
+              }}
+            >
+              {article.title}
+            </a>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 function AboutPage({
   onOpenGuide,
   onOpenPuzzle,
+  onOpenArticle,
   onOpenSolver,
 }: {
   onOpenGuide: (puzzleId: PuzzleId) => void
   onOpenPuzzle: (puzzleId: PuzzleId) => void
+  onOpenArticle: (tab: WorkspaceTab) => void
   onOpenSolver: () => void
 }) {
   const { t } = useI18n()
   const featureKeys = ['scan', 'validate', 'solve', 'playback'] as const
   const audienceKeys = ['beginner', 'learner', 'player'] as const
+  const articleIds: SeoArticleTab[] = ['how2x2', 'how4x4', 'cubeStats']
   return (
     <section className="about-page">
       <section className="about-hero panel">
@@ -1693,6 +2002,31 @@ function AboutPage({
           <li>{t('about.help.step.2')}</li>
           <li>{t('about.help.step.3')}</li>
         </ol>
+      </section>
+
+      <section className="about-section">
+        <div className="about-section-heading">
+          <h2>Learning pages</h2>
+          <p>Focused guides for common cube questions, with links back to the matching solver tools.</p>
+        </div>
+        <div className="seo-resource-grid">
+          {articleIds.map((id) => {
+            const article = SEO_ARTICLES[id]
+            return (
+              <a
+                key={id}
+                href={SEO_ARTICLE_ROUTES[id]}
+                onClick={(event) => {
+                  event.preventDefault()
+                  onOpenArticle(id)
+                }}
+              >
+                <span>{article.kicker}</span>
+                <strong>{article.title}</strong>
+              </a>
+            )
+          })}
+        </div>
       </section>
 
       <section className="about-section">
